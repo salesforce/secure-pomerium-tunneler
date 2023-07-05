@@ -1,0 +1,26 @@
+<idea-plugin>
+    <id>com.salesforce.intellij.sgt</id>
+    <name>Secure Gateway Tunneler</name>
+    <vendor>Salesforce</vendor>
+
+    <depends>com.jetbrains.gateway</depends>
+    <depends>com.intellij.modules.platform</depends>
+
+    <resource-bundle>messages.MyBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.jetbrains">
+        <gatewayConnectionProvider implementation="com.salesforce.intellij.gateway.connector.PomeriumBasedGatewayConnectionProvider"/>
+        <gatewayConnector implementation="com.salesforce.intellij.gateway.connector.GatewayConnectLinkConnector" />
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="com.salesforce.intellij.gateway.pomerium.PomeriumAuthService"/>
+        <applicationService serviceImplementation="com.salesforce.intellij.gateway.pomerium.PomeriumTunneler"/>
+        <applicationService serviceImplementation="com.salesforce.intellij.gateway.connector.ApplicationListenerImpl" />
+    </extensions>
+
+    <applicationListeners>
+        <listener class="com.salesforce.intellij.gateway.connector.ApplicationListenerImpl"
+                  topic="com.intellij.ide.AppLifecycleListener" />
+    </applicationListeners>
+</idea-plugin>
