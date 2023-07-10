@@ -1,4 +1,4 @@
-package com.salesforce.intellij.gateway.pomerium
+package com.salesforce.pomerium
 
 import com.jetbrains.rd.util.lifetime.LifetimeDefinition
 import kotlinx.coroutines.CompletableDeferred
@@ -6,10 +6,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
-import org.junit.After
-import org.junit.Assert
 import org.junit.Rule
-import org.junit.Test
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doSuspendableAnswer
@@ -25,14 +25,14 @@ class PomeriumTunnelerTest {
     val mockPomerium = MockPomerium()
     val lifetime = LifetimeDefinition()
 
-    @After
+    @AfterEach
     fun teardown() {
         lifetime.terminate()
     }
 
     @Test
     fun `test end to end tunnler`() = runTest {
-        val authProvider = mock<PomeriumAuthProvider> {
+        val authProvider = mock<AuthProvider> {
             onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred(mockPomerium.token)
         }
         val pomeriumTunneler = PomeriumTunneler(authProvider, 100, false)
@@ -45,14 +45,14 @@ class PomeriumTunnelerTest {
             it.getOutputStream().write(testEchoMessage)
             val ips = it.getInputStream()
             val line = ips.readNBytes(1024)
-            Assert.assertEquals(0, ips.available())
-            Assert.assertArrayEquals(testEchoMessage, line)
+            Assertions.assertEquals(0, ips.available())
+            Assertions.assertArrayEquals(testEchoMessage, line)
         }
     }
 
     @Test
     fun `test tunneler with reconnect`() = runTest {
-        val authProvider = mock<PomeriumAuthProvider> {
+        val authProvider = mock<AuthProvider> {
             onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred(mockPomerium.token)
         }
         val pomeriumTunneler = PomeriumTunneler(authProvider, 100, false)
@@ -71,14 +71,14 @@ class PomeriumTunnelerTest {
             it.getOutputStream().write(testEchoMessage)
             val ips = it.getInputStream()
             val line = ips.readNBytes(1024)
-            Assert.assertEquals(0, ips.available())
-            Assert.assertArrayEquals(testEchoMessage, line)
+            Assertions.assertEquals(0, ips.available())
+            Assertions.assertArrayEquals(testEchoMessage, line)
         }
     }
 
     @Test
     fun `test tunneler with pomerium disconnect`() = runTest {
-        val authProvider = mock<PomeriumAuthProvider> {
+        val authProvider = mock<AuthProvider> {
             onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred(mockPomerium.token)
         }
         val pomeriumTunneler = PomeriumTunneler(authProvider, 500, false)
@@ -92,9 +92,9 @@ class PomeriumTunnelerTest {
                 val testEchoMessage = Random.nextBytes(1024)
                 it.getOutputStream().write(testEchoMessage)
                 val ips = it.getInputStream()
-                var line = ips.readNBytes(1024)
-                Assert.assertEquals(0, ips.available())
-                Assert.assertArrayEquals(testEchoMessage, line)
+                val line = ips.readNBytes(1024)
+                Assertions.assertEquals(0, ips.available())
+                Assertions.assertArrayEquals(testEchoMessage, line)
 
                 mockPomerium.killConnection()
 
@@ -105,16 +105,16 @@ class PomeriumTunnelerTest {
         } catch (e: SocketTimeoutException) {
             //expected
         }
-        Assert.assertEquals(1, mockPomerium.requestCount)
+        Assertions.assertEquals(1, mockPomerium.requestCount)
         Socket("localhost", port).use {
             val testEchoMessage = Random.nextBytes(1024)
             it.getOutputStream().write(testEchoMessage)
             val ips = it.getInputStream()
             val line = ips.readNBytes(1024)
-            Assert.assertEquals(0, ips.available())
-            Assert.assertArrayEquals(testEchoMessage, line)
+            Assertions.assertEquals(0, ips.available())
+            Assertions.assertArrayEquals(testEchoMessage, line)
         }
-        Assert.assertEquals(2, mockPomerium.requestCount)
+        Assertions.assertEquals(2, mockPomerium.requestCount)
     }
 
 
@@ -127,7 +127,7 @@ class PomeriumTunnelerTest {
             }
             return@async mockPomerium.token
         }
-        val authProvider = mock<PomeriumAuthProvider> {
+        val authProvider = mock<AuthProvider> {
             onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred("") doSuspendableAnswer {
                 ++authCount
                 job
@@ -144,9 +144,9 @@ class PomeriumTunnelerTest {
                 val testEchoMessage = Random.nextBytes(1024)
                 it.getOutputStream().write(testEchoMessage)
                 val ips = it.getInputStream()
-                var line = ips.readNBytes(1024)
-                Assert.assertEquals(0, ips.available())
-                Assert.assertArrayEquals(testEchoMessage, line)
+                val line = ips.readNBytes(1024)
+                Assertions.assertEquals(0, ips.available())
+                Assertions.assertArrayEquals(testEchoMessage, line)
             }
         } catch (e: SocketTimeoutException) {
             //Expected
@@ -158,12 +158,37 @@ class PomeriumTunnelerTest {
             val testEchoMessage = Random.nextBytes(1024)
             it.getOutputStream().write(testEchoMessage)
             val ips = it.getInputStream()
-            var line = ips.readNBytes(1024)
-            Assert.assertEquals(0, ips.available())
-            Assert.assertArrayEquals(testEchoMessage, line)
+            val line = ips.readNBytes(1024)
+            Assertions.assertEquals(0, ips.available())
+            Assertions.assertArrayEquals(testEchoMessage, line)
         }
 
         //The WithTimeout should prevent
-        Assert.assertEquals(1, mockPomerium.requestCount)
+        Assertions.assertEquals(1, mockPomerium.requestCount)
+    }
+
+    @Test
+    fun `test tunnler with lifetime termination`() = runTest {
+        val authProvider = mock<AuthProvider> {
+            onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred(mockPomerium.token)
+        }
+        val pomeriumTunneler = PomeriumTunneler(authProvider, 100, false)
+        val mockPomeriumPort = mockPomerium.startMockPomerium()
+
+        val uri = URI("tcp://${mockPomerium.route}")
+        val childLifetime = lifetime.createNested()
+        val port = pomeriumTunneler.startTunnel(uri, childLifetime, pomeriumPort = mockPomeriumPort)
+        Socket("localhost", port).use {
+            val testEchoMessage = Random.nextBytes(1024)
+            it.getOutputStream().write(testEchoMessage)
+            val ips = it.getInputStream()
+            val line = ips.readNBytes(1024)
+            Assertions.assertEquals(0, ips.available())
+            Assertions.assertArrayEquals(testEchoMessage, line)
+        }
+
+        childLifetime.terminate()
+        Thread.sleep(100) //Need to wait for the cancellation to propagate
+        Assertions.assertFalse(pomeriumTunneler.isTunneling())
     }
 }

@@ -25,7 +25,6 @@ import javax.swing.JPanel
  * instances. Useful since clicking the link in the browser will not launch sandbox instances
  */
 class GatewayConnectLinkConnector: GatewayConnector, GatewayCustomViewConnector {
-    private val cs = ApplicationListenerImpl.instance.coroutineScope
     override val icon = Icons.Link
 
     init {
@@ -49,11 +48,7 @@ class GatewayConnectLinkConnector: GatewayConnector, GatewayCustomViewConnector 
                 return panel {
                     val connect: (url: String?) -> Unit = {url ->
                         if (url?.isNotBlank() == true) {
-                            val fragments = URI(url.trim()).rawFragment?.split("&")
-                                ?.toList()?.associateBy({ it.split("=")[0]},
-                                    { URLDecoder.decode(it.split("=")[1], Charset.defaultCharset()) }) ?: mapOf()
-
-                            GatewayUI.getInstance().connect(fragments)
+                            fromBrowserLink(url)
                         }
                     }
                     row("URL:") {
@@ -83,6 +78,16 @@ class GatewayConnectLinkConnector: GatewayConnector, GatewayCustomViewConnector 
             else -> {
                 return panel {  }
             }
+        }
+    }
+
+    companion object {
+        fun fromBrowserLink(url: String) {
+            val fragments = URI(url.trim()).rawFragment?.split("&")
+                ?.toList()?.associateBy({ it.split("=")[0]},
+                    { URLDecoder.decode(it.split("=")[1], Charset.defaultCharset()) }) ?: mapOf()
+
+            GatewayUI.getInstance().connect(fragments)
         }
     }
 

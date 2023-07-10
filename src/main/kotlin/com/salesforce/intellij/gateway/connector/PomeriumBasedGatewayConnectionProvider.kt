@@ -1,21 +1,43 @@
 package com.salesforce.intellij.gateway.connector
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.rd.defineNestedLifetime
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.registry.Registry
+import com.intellij.serviceContainer.NonInjectable
 import com.jetbrains.gateway.api.ConnectionRequestor
 import com.jetbrains.gateway.api.GatewayConnectionHandle
 import com.jetbrains.gateway.api.GatewayConnectionProvider
 import com.jetbrains.gateway.thinClientLink.LinkedClientManager
 import com.jetbrains.gateway.thinClientLink.ThinClientHandle
-import com.salesforce.intellij.gateway.pomerium.PomeriumTunneler
+import com.jetbrains.rd.util.lifetime.Lifetime
+import com.salesforce.pomerium.PomeriumAuthProvider
+import com.salesforce.pomerium.PomeriumTunneler
+import org.jetbrains.annotations.TestOnly
 import java.net.URI
 
-class PomeriumBasedGatewayConnectionProvider : GatewayConnectionProvider, Disposable {
+const val POMERIUM_PORT_KEY = "com.salesforce.intellij.pomerium_port"
+private val pomeriumPort by lazy {
+    Registry.intValue(POMERIUM_PORT_KEY, 443)
+}
+val PomeriumAuthService by lazy {
+    PomeriumAuthProvider(GatewayCredentialStore, GatewayAuthLinkHandler, pomeriumPort)
+}
+class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal constructor(
+    private val createHandle: (lifetime: Lifetime, initialLink: URI, remoteIdentity: String?) -> ThinClientHandle
+): GatewayConnectionProvider, Disposable {
 
+    private val tunneler = PomeriumTunneler(PomeriumAuthService, useTls = !ApplicationManager.getApplication().isUnitTestMode)
+
+    constructor(): this({lifetime, initialLink, remoteIdentity ->
+        LinkedClientManager.getInstance().startNewClient(lifetime, initialLink, remoteIdentity) {
+            LOG.debug("Connection established")
+        }
+    })
     init {
-        Disposer.register(PomeriumTunneler.instance, this)
+        Disposer.register(ApplicationListenerImpl.instance, this)
     }
 
     override fun isApplicable(parameters: Map<String, String>) = parameters.containsKey(PARAM_ROUTE)
@@ -38,18 +60,16 @@ class PomeriumBasedGatewayConnectionProvider : GatewayConnectionProvider, Dispos
             runningInstances.remove(pomeriumRouteString)
         }
         try {
-            val port = PomeriumTunneler.instance.startTunnel(
+            val port = tunneler.startTunnel(
                 pomeriumRoute,
                 lifetime,
-                pomeriumInstance ?: pomeriumRoute.host
+                pomeriumInstance ?: pomeriumRoute.host,
+                pomeriumPort
             )
-            val handle = LinkedClientManager.getInstance().startNewClient(
-                lifetime,
-                URI("tcp://localhost:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
-                pomeriumRoute.toString()
-            ) {
-                LOG.debug("Connection established")
-            }
+
+            val handle = createHandle(lifetime,
+                    URI("tcp://localhost:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
+                    pomeriumRoute.toString())
             lifetime.onTermination {
                 val oldHandle = runningInstances.remove(pomeriumRouteString)
                 //Prevent removing anything but this handle
@@ -86,7 +106,6 @@ class PomeriumBasedGatewayConnectionProvider : GatewayConnectionProvider, Dispos
         const val PARAM_ROUTE = "pomeriumRoute"
         const val PARAM_CONNECTION_KEY = "connectionKey"
         const val PARAM_POMERIUM_INSTANCE = "pomeriumInstance"
-
 
         private val runningInstances = HashMap<String, ThinClientHandle>()
     }

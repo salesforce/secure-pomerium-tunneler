@@ -14,9 +14,7 @@
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="com.salesforce.intellij.gateway.pomerium.PomeriumAuthService"/>
-        <applicationService serviceImplementation="com.salesforce.intellij.gateway.pomerium.PomeriumTunneler"/>
-        <applicationService serviceImplementation="com.salesforce.intellij.gateway.connector.ApplicationListenerImpl" />
+        <applicationService serviceImplementation="com.salesforce.intellij.gateway.connector.ApplicationListenerImpl"/>
     </extensions>
 
     <applicationListeners>

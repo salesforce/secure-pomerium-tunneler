@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.kotlin) // Kotlin support
     alias(libs.plugins.gradleIntelliJPlugin) // Gradle IntelliJ Plugin
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
-    alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
 }
 
@@ -23,12 +22,15 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
-    implementation("com.athaydes.rawhttp:rawhttp-core:2.5.2")
-    compileOnly("io.ktor:ktor-network:2.2.3")
-    compileOnly("io.ktor:ktor-network-tls:2.2.3")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
+    implementation(project(":tunneler")) {
+        exclude("org.jetbrains.kotlinx", "kotlinx-coroutines-core")
+        exclude("com.jetbrains.rd", "rd-framework")
+        exclude("io.ktor", "*")
+        exclude("org.slf4j", "*")
+    }
+    testImplementation(testFixtures(project(":tunneler")))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
 }
 
 // Set the JVM language level used to build the project. Use Java 11 for 2020.3+, and Java 17 for 2022.2+.
@@ -50,14 +52,6 @@ intellij {
 changelog {
     groups.empty()
     repositoryUrl = properties("pluginRepositoryUrl")
-}
-
-// Configure Gradle Qodana Plugin - read more: https://github.com/JetBrains/gradle-qodana-plugin
-qodana {
-    cachePath = provider { file(".qodana").canonicalPath }
-    reportPath = provider { file("build/reports/inspections").canonicalPath }
-    saveReport = true
-    showReport = environment("QODANA_SHOW_REPORT").map { it.toBoolean() }.getOrElse(false)
 }
 
 // Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
