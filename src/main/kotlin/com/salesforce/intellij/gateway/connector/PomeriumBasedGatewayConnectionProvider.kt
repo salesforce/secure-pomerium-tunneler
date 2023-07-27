@@ -7,6 +7,7 @@ import com.intellij.openapi.rd.defineNestedLifetime
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.serviceContainer.NonInjectable
+import com.intellij.util.net.ssl.CertificateManager
 import com.jetbrains.gateway.api.ConnectionRequestor
 import com.jetbrains.gateway.api.GatewayConnectionHandle
 import com.jetbrains.gateway.api.GatewayConnectionProvider
@@ -29,7 +30,9 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
     private val createHandle: (lifetime: Lifetime, initialLink: URI, remoteIdentity: String?) -> ThinClientHandle
 ): GatewayConnectionProvider, Disposable {
 
-    private val tunneler = PomeriumTunneler(PomeriumAuthService, useTls = !ApplicationManager.getApplication().isUnitTestMode)
+    private val tunneler = PomeriumTunneler(PomeriumAuthService,
+        useTls = !ApplicationManager.getApplication().isUnitTestMode,
+        trustManager = CertificateManager.getInstance().trustManager)
 
     constructor(): this({lifetime, initialLink, remoteIdentity ->
         LinkedClientManager.getInstance().startNewClient(lifetime, initialLink, remoteIdentity) {
@@ -52,13 +55,15 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         val pomeriumRoute = URI(pomeriumRouteString)
         val lifetime = defineNestedLifetime()
 
-        runningInstances[pomeriumRouteString]?.let {
-            if (it.clientPresent) {
-                runningInstances[pomeriumRouteString]!!.focusClientWindow()
-                return null
-            }
-            runningInstances.remove(pomeriumRouteString)
-        }
+        //TODO, disabling this check as there is a bug in Gateway that does not properly end the lifetime
+//        runningInstances[pomeriumRouteString]?.let {
+//            if (it.clientPresent) {
+//                LOG.info("Attempting to connect to an existing, ongoing, session")
+//                runningInstances[pomeriumRouteString]!!.focusClientWindow()
+//                return null
+//            }
+//            runningInstances.remove(pomeriumRouteString)
+//        }
         try {
             val port = tunneler.startTunnel(
                 pomeriumRoute,

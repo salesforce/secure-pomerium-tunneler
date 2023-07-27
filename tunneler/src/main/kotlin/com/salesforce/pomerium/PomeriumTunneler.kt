@@ -20,15 +20,14 @@ import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.net.URI
-import java.security.cert.X509Certificate
-import java.util.logging.Logger
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.TrustManager
 import kotlin.time.Duration.Companion.seconds
 
 class PomeriumTunneler(
     private val authProvider: AuthProvider,
     private val soTimeout: Long = 10.seconds.inWholeMilliseconds,
-    private val useTls: Boolean = true
+    private val useTls: Boolean = true,
+    private val trustManager: TrustManager? = null
 ) {
 
     private val openTunnels = HashSet<URI>()
@@ -68,7 +67,7 @@ class PomeriumTunneler(
                                 .connect(pomeriumHost, pomeriumPort) {
                                     keepAlive = true
                                     socketTimeout = soTimeout
-                                }.configure(useTls).use { tunnelSocket ->
+                                }.configure(useTls, pomeriumHost, trustManager).use { tunnelSocket ->
                                     val writeChannel = tunnelSocket.openWriteChannel(true)
                                     val readChannel = tunnelSocket.openReadChannel()
                                     val inputStream = readChannel.toInputStream()
@@ -172,18 +171,14 @@ class PomeriumTunneler(
 
     fun isTunneling() = openTunnels.isNotEmpty()
 
-    private suspend fun Socket.configure(useTls: Boolean): Socket {
+    private suspend fun Socket.configure(useTls: Boolean, serverName: String, trustManager: TrustManager?): Socket {
         return if (useTls) {
             val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
                 LOG.error("Exception in the tunnel TLS translation", throwable)
             }
             tls(Dispatchers.IO + handler) {
-                //TODO, how to handle pomerium certs
-                trustManager = object : X509TrustManager {
-                    override fun getAcceptedIssuers(): Array<X509Certificate?> = arrayOf()
-                    override fun checkClientTrusted(certs: Array<X509Certificate?>?, authType: String?) {}
-                    override fun checkServerTrusted(certs: Array<X509Certificate?>?, authType: String?) {}
-                }
+                this.serverName = serverName
+                this.trustManager = trustManager
             }
         } else {
             this
