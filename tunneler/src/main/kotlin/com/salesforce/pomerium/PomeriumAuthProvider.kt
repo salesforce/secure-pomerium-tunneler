@@ -3,24 +3,28 @@ package com.salesforce.pomerium
 import com.jetbrains.rd.framework.util.startAsync
 import com.jetbrains.rd.framework.util.synchronizeWith
 import com.jetbrains.rd.util.lifetime.Lifetime
-import com.sun.net.httpserver.HttpExchange
-import com.sun.net.httpserver.HttpHandler
-import com.sun.net.httpserver.HttpServer
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.server.application.call
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.future.await
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.apache.http.client.methods.HttpGet
 import org.apache.http.client.utils.URIBuilder
-import org.apache.http.impl.client.HttpClients
 import org.slf4j.LoggerFactory
-import java.net.InetSocketAddress
+import java.io.Closeable
 import java.net.URI
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -61,22 +65,21 @@ class PomeriumAuthProvider (
             }
 
             val jobLifetime = Lifetime.Eternal.createNested()
-            val handler = PomeriumAuthCallbackServer()
-            val server = HttpServer.create(InetSocketAddress("localhost", 0), 0).also {
-                it.createContext("/", handler)
-                it.start()
-            }
 
-            LOG.info("Starting HTTP server on port ${server.address.port} for pomerium auth token callback")
+            val callbackServer = PomeriumAuthCallbackServer()
+            val serverPort = callbackServer.start()
 
-            val authLink = getAuthLink(route, pomeriumPort, server.address.port)
+            LOG.info("Starting HTTP server on port ${serverPort} for pomerium auth token callback")
+
+            val authLink = getAuthLink(route, pomeriumPort, serverPort)
             val credString = getCredString(authLink)
             return@withContext credKeyToMutexMap.computeIfAbsent(credString) { Mutex() }.withLock {
                 credentialStore.getToken(credString)?.let { auth ->
+                    callbackServer.close()
                     return@withLock CompletableDeferred(auth)
                 }
                 credKeyToAuthJobMap[credString]?.let {
-                    server.stop(0)
+                    callbackServer.close()
                     LOG.debug("Existing auth job found, reusing job")
                     lifetimesRequestingToken[credString]!!.add(lifetime)
                     lifetime.onTermination {
@@ -84,11 +87,11 @@ class PomeriumAuthProvider (
                     }
                     return@withLock it
                 }
-                routeToCredKeyMap.put(route, credString)
+                routeToCredKeyMap[route] = credString
                 val isNewRoute = existingRoutes.add(route)
                 val getToken = jobLifetime.startAsync(Dispatchers.Default) {
                     try {
-                        val auth = handler.getToken()
+                        val auth = callbackServer.getToken()
                         LOG.info("Successfully acquired Pomerium authentication")
                         credentialStore.setToken(credString, auth)
                         return@startAsync auth
@@ -96,7 +99,7 @@ class PomeriumAuthProvider (
                         withContext(NonCancellable) {
                             credKeyToMutexMap[credString]!!.withLock {
                                 credKeyToAuthJobMap.remove(credString)
-                                server.stop(0)
+                                callbackServer.close()
                             }
 
                         }
@@ -110,7 +113,9 @@ class PomeriumAuthProvider (
                 }
 
                 linkHandler.handleAuth({
-                    getAuthLink(route, pomeriumPort, server.address.port)
+                    runBlocking {
+                        getAuthLink(route, pomeriumPort, serverPort)
+                    }
                 }, jobLifetime, isNewRoute)
 
                 return@withLock getToken
@@ -144,50 +149,62 @@ class PomeriumAuthProvider (
         const val POMERIUM_JWT_QUERY_PARAM = "pomerium_jwt"
 
         private val LOG = LoggerFactory.getLogger(PomeriumAuthProvider::class.java.name)
+        private val client = HttpClient()
 
         fun getCredString(authLink: URI): CredentialKey = "Pomerium instance ${authLink.host}"
 
-        private fun getAuthLink(route: URI, pomeriumPort: Int, callbackServerPort: Int): URI {
+        /**
+         * Returns the authentication service host used by the route
+         */
+        suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
+            // port 8080 is not ever used, but we have to pass some port to Pomerium
+            return getAuthLink(route, pomeriumPort, 8080).host
+        }
+
+        private suspend fun getAuthLink(route: URI, pomeriumPort: Int, callbackServerPort: Int): URI {
             val uri = URIBuilder(route)
                 .setScheme(if (pomeriumPort == 443) "https" else "http")
                 .setPort(pomeriumPort)
                 .setPath(POMERIUM_LOGIN_ENDPOINT)
                 .setParameter(POMERIUM_LOGIN_REDIRECT_PARAM, "http://localhost:$callbackServerPort")
                 .build()
-            return HttpClients.createSystem().use { client ->
-                client.execute(HttpGet(uri)).use {
-                    LOG.debug("Fetched auth link from Pomerium")
-                    URI.create(it.entity.content.readAllBytes().decodeToString())
-                }
-            }
+            val link = client.get(uri.toURL()).bodyAsText()
+            return URI.create(link)
         }
     }
 
-    private class PomeriumAuthCallbackServer : HttpHandler {
-        private val token = CompletableFuture<String>()
+    private class PomeriumAuthCallbackServer : Closeable {
+        val tokenFuture = CompletableDeferred<String>()
 
-        override fun handle(exchange: HttpExchange) {
-            LOG.debug("Handling http exchange")
-            if ("get".equals(exchange.requestMethod, ignoreCase = true)) {
-                exchange.requestURI.query.split("&")
-                    .filter { it.startsWith(POMERIUM_JWT_QUERY_PARAM) }
-                    .map { it.split("=")[1] }
-                    .firstOrNull()?.let {
-                        exchange.sendResponseHeaders(200, RESPONSE.length.toLong())
-                        exchange.responseBody.write(RESPONSE.encodeToByteArray())
-                        token.complete(it)
-                    } ?: {
-                    LOG.warn("Pomerium auth callback did not contain expected jwt query param")
-                    exchange.sendResponseHeaders(500, RESPONSE_FAILURE.length.toLong())
-                    exchange.responseBody.write(RESPONSE_FAILURE.encodeToByteArray())
+        val server = embeddedServer(Netty, 0) {
+            routing {
+                get("/") {
+                    val jwtQuery = call.parameters[POMERIUM_JWT_QUERY_PARAM]
+                    if (jwtQuery != null) {
+                        call.respondText(RESPONSE)
+                        tokenFuture.complete(jwtQuery)
+                    } else {
+                        call.respondText(RESPONSE_FAILURE)
+                    }
                 }
-            } else {
-                LOG.warn("Unknown request method arrived in the Pomerium auth callback: ${exchange.requestMethod}")
+                route("*") {
+                    handle {
+                        call.respondText(RESPONSE_FAILURE)
+                    }
+                }
             }
         }
 
+        suspend fun start(): Int {
+            return server.start().resolvedConnectors().first().port
+        }
+
+        override fun close() {
+            server.stop()
+        }
+
         suspend fun getToken(): String {
-            return token.await()
+            return tokenFuture.await()
         }
 
         companion object {
