@@ -5,7 +5,7 @@ import java.awt.Desktop
 import java.net.URI
 
 class OpenBrowserAuthLinkHandler : AuthLinkHandler {
-    override fun handleAuth(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
+    override fun handleAuthLink(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean, invokingRoute: URI) {
         Desktop.getDesktop().browse(getLink())
     }
 }

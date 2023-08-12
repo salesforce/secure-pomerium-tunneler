@@ -112,11 +112,11 @@ class PomeriumAuthProvider (
                     onLifetimeTermination(lifetime, credString, getToken)
                 }
 
-                linkHandler.handleAuth({
+                linkHandler.handleAuthLink({
                     runBlocking {
                         getAuthLink(route, pomeriumPort, serverPort)
                     }
-                }, jobLifetime, isNewRoute)
+                }, jobLifetime, isNewRoute, route)
 
                 return@withLock getToken
             }
