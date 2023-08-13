@@ -30,7 +30,7 @@ class PomeriumAuthProviderTest {
     }
 
     object NoOpAuthLinkHandler: AuthLinkHandler {
-        override fun handleAuth(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
+        override fun handleAuthLink(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
             //Nothing
         }
 
@@ -192,7 +192,7 @@ class PomeriumAuthProviderTest {
 
         var handlerCalled = false
         val handler = object : AuthLinkHandler {
-            override fun handleAuth(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
+            override fun handleAuthLink(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
                 //A bit weird, but the first call does not get passed. An optimization we could make
                 //would be to return the initial auth link with some expiration
                 Assertions.assertEquals("http://example.com/1", getLink().toString())
@@ -217,7 +217,7 @@ class PomeriumAuthProviderTest {
         val route = URI("http://localhost:${server.port}")
 
         val handler = object : AuthLinkHandler {
-            override fun handleAuth(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
+            override fun handleAuthLink(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
                 jobLifetime.terminate()
             }
 

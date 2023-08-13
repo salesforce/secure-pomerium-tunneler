@@ -24,7 +24,10 @@ private val pomeriumPort by lazy {
     Registry.intValue(POMERIUM_PORT_KEY, 443)
 }
 val PomeriumAuthService by lazy {
-    PomeriumAuthProvider(GatewayCredentialStore, GatewayAuthLinkHandler, pomeriumPort)
+    PomeriumAuthProvider(GatewayCredentialStore, GatewayAuthLinkHandler, pomeriumPort,
+            CertificateManager.getInstance().sslContext.socketFactory,
+            CertificateManager.getInstance().trustManager
+    )
 }
 class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal constructor(
     private val createHandle: (lifetime: Lifetime, initialLink: URI, remoteIdentity: String?) -> ThinClientHandle
