@@ -25,7 +25,11 @@ dependencies {
     implementation(project(":tunneler")) {
         exclude("org.jetbrains.kotlinx", "kotlinx-coroutines-core")
         exclude("com.jetbrains.rd", "rd-framework")
-        exclude("io.ktor", "*")
+        exclude("io.ktor", "ktor-network")
+        exclude("io.ktor", "ktor-network-tls")
+        exclude("io.ktor", "ktor-client-core")
+        exclude("io.ktor", "ktor-http-jvm")
+        exclude("io.ktor", "ktor-utils-jvm")
         exclude("org.slf4j", "*")
     }
     testImplementation(testFixtures(project(":tunneler")))

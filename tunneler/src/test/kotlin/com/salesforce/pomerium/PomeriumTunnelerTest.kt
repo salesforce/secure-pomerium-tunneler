@@ -15,6 +15,7 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.mock
 import java.net.Socket
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.URI
 import kotlin.random.Random
@@ -133,7 +134,7 @@ class PomeriumTunnelerTest {
                 job
             }
         }
-        val pomeriumTunneler = PomeriumTunneler(authProvider, 100, false)
+        val pomeriumTunneler = PomeriumTunneler(authProvider, 200, false)
         val mockPomeriumPort = mockPomerium.startMockPomerium()
 
         val uri = URI("tcp://${mockPomerium.route}")
@@ -165,6 +166,39 @@ class PomeriumTunnelerTest {
 
         //The WithTimeout should prevent
         Assertions.assertEquals(1, mockPomerium.requestCount)
+    }
+
+    @Test
+    fun `test tunneler with auth blocked waiting closes connection on timeout`() = runTest {
+        var authCount = 0
+
+        val authProvider = mock<AuthProvider> {
+            onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred("") doSuspendableAnswer {
+                async {
+                    delay(200)
+                    return@async ""
+                }
+            }
+        }
+        val pomeriumTunneler = PomeriumTunneler(authProvider, 100, false)
+        val mockPomeriumPort = mockPomerium.startMockPomerium()
+
+        val uri = URI("tcp://${mockPomerium.route}")
+        val port = pomeriumTunneler.startTunnel(uri, lifetime, pomeriumPort = mockPomeriumPort)
+        try {
+            Socket("localhost", port).use {
+                it.soTimeout = 200
+                val testEchoMessage = Random.nextBytes(1024)
+                it.getOutputStream().write(testEchoMessage)
+                val ips = it.getInputStream()
+                val line = ips.readNBytes(1024)
+                Assertions.assertEquals(0, ips.available())
+                Assertions.assertArrayEquals(testEchoMessage, line)
+            }
+        } catch (e: SocketException) {
+            Assertions.assertTrue(e.message?.contains("Connection reset") ?: false)
+            //Expected
+        }
     }
 
     @Test

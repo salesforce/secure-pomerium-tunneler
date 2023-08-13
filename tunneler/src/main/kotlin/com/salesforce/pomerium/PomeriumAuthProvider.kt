@@ -4,6 +4,7 @@ import com.jetbrains.rd.framework.util.startAsync
 import com.jetbrains.rd.framework.util.synchronizeWith
 import com.jetbrains.rd.util.lifetime.Lifetime
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.*
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.server.application.call
@@ -21,11 +22,16 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import org.apache.http.client.utils.URIBuilder
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 /**
  * Service for getting authentication for pomerium controlled routes.
@@ -35,7 +41,9 @@ import java.util.concurrent.ConcurrentHashMap
 class PomeriumAuthProvider (
     private val credentialStore: CredentialStore,
     private val linkHandler: AuthLinkHandler = OpenBrowserAuthLinkHandler(),
-    private val pomeriumPort: Int = 443
+    private val pomeriumPort: Int = 443,
+    sslSocketFactory: SSLSocketFactory? = null,
+    trustManager: X509TrustManager? = null
 ) : AuthProvider {
 
     private val credKeyToMutexMap = ConcurrentHashMap<CredentialKey, Mutex>()
@@ -43,6 +51,16 @@ class PomeriumAuthProvider (
     private val routeToCredKeyMap = HashMap<URI, CredentialKey>()
     private val lifetimesRequestingToken = HashMap<CredentialKey, MutableSet<Lifetime>>()
     private val existingRoutes = HashSet<URI>()
+
+    private val client = HttpClient(OkHttp) {
+        if (sslSocketFactory != null && trustManager != null) {
+            engine {
+                config {
+                    sslSocketFactory(sslSocketFactory, trustManager)
+                }
+            }
+        }
+    }
 
     override suspend fun getAuth(route: URI, lifetime: Lifetime): Deferred<String> =
         withContext(Dispatchers.Default) {
@@ -116,7 +134,7 @@ class PomeriumAuthProvider (
                     runBlocking {
                         getAuthLink(route, pomeriumPort, serverPort)
                     }
-                }, jobLifetime, isNewRoute, route)
+                }, jobLifetime, isNewRoute)
 
                 return@withLock getToken
             }
@@ -142,6 +160,25 @@ class PomeriumAuthProvider (
             job.cancel()
         }
     }
+    /**
+     * Returns the authentication service host used by the route
+     */
+    suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
+        // port 8080 is not ever used, but we have to pass some port to Pomerium
+        return getAuthLink(route, pomeriumPort, 8080).host
+    }
+
+    private suspend fun getAuthLink(route: URI, pomeriumPort: Int, callbackServerPort: Int): URI {
+        val uri = URIBuilder(route)
+            .setScheme(if (pomeriumPort == 443) "https" else "http")
+            .setPort(pomeriumPort)
+            .setPath(POMERIUM_LOGIN_ENDPOINT)
+            .setParameter(POMERIUM_LOGIN_REDIRECT_PARAM, "http://localhost:$callbackServerPort")
+            .build()
+        val link = client.get(uri.toURL()).bodyAsText()
+        return URI.create(link)
+    }
+
 
     companion object {
         const val POMERIUM_LOGIN_ENDPOINT = "/.pomerium/api/v1/login"
@@ -149,28 +186,8 @@ class PomeriumAuthProvider (
         const val POMERIUM_JWT_QUERY_PARAM = "pomerium_jwt"
 
         private val LOG = LoggerFactory.getLogger(PomeriumAuthProvider::class.java.name)
-        private val client = HttpClient()
 
         fun getCredString(authLink: URI): CredentialKey = "Pomerium instance ${authLink.host}"
-
-        /**
-         * Returns the authentication service host used by the route
-         */
-        suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
-            // port 8080 is not ever used, but we have to pass some port to Pomerium
-            return getAuthLink(route, pomeriumPort, 8080).host
-        }
-
-        private suspend fun getAuthLink(route: URI, pomeriumPort: Int, callbackServerPort: Int): URI {
-            val uri = URIBuilder(route)
-                .setScheme(if (pomeriumPort == 443) "https" else "http")
-                .setPort(pomeriumPort)
-                .setPath(POMERIUM_LOGIN_ENDPOINT)
-                .setParameter(POMERIUM_LOGIN_REDIRECT_PARAM, "http://localhost:$callbackServerPort")
-                .build()
-            val link = client.get(uri.toURL()).bodyAsText()
-            return URI.create(link)
-        }
     }
 
     private class PomeriumAuthCallbackServer : Closeable {
