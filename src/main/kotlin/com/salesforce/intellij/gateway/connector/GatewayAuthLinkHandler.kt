@@ -24,7 +24,7 @@ import javax.swing.AbstractAction
 
 object GatewayAuthLinkHandler : AuthLinkHandler {
     private val log = Logger.getInstance(GatewayAuthLinkHandler::class.java)
-    override fun handleAuth(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
+    override fun handleAuthLink(getLink: () -> URI, jobLifetime: LifetimeDefinition, newRoute: Boolean) {
         val willOpenBrowser = ApplicationManager.getApplication().isActive || newRoute
 
         if (!ApplicationManager.getApplication().isUnitTestMode) {

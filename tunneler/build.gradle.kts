@@ -26,7 +26,7 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm:$ktorVersion")
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-network-tls:$ktorVersion")
-    implementation("org.slf4j:slf4j-api:2.0.5")
+    implementation("org.slf4j:slf4j-api:2.0.7")
     testFixturesImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
     testFixturesImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.2")
     testFixturesImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")

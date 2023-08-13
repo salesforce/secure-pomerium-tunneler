@@ -10,9 +10,7 @@ interface AuthLinkHandler {
      * @param getLink Call this to fetch the latest link to direct the user to
      * @param jobLifetime The lifetime of the authentication job. Once authentication is complete, the lifetime will be too
      * @param newRoute True if this is a new route during the JVM lifetime
-     * @param invokingRoute The first route which caused the authentication flow to happen. Note, other routes which
-     *        can use the same auth may have requested auth in the mean time.
      */
     fun handleAuthLink(getLink: () -> URI, jobLifetime: LifetimeDefinition,
-                       newRoute: Boolean, invokingRoute: URI)
+                       newRoute: Boolean)
 }
