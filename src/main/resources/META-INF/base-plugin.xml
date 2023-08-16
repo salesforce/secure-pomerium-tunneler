@@ -1,0 +1,15 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.jetbrains">
+        <gatewayConnectionProvider implementation="com.salesforce.intellij.gateway.connector.PomeriumBasedGatewayConnectionProvider"/>
+        <gatewayConnector implementation="com.salesforce.intellij.gateway.connector.GatewayConnectLinkConnector" />
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="com.salesforce.intellij.gateway.connector.ApplicationListenerImpl"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener class="com.salesforce.intellij.gateway.connector.ApplicationListenerImpl"
+                  topic="com.intellij.ide.AppLifecycleListener" />
+    </applicationListeners>
+</idea-plugin>
