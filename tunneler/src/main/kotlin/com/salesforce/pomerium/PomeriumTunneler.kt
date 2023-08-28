@@ -18,6 +18,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
+import rawhttp.core.HttpVersion
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpHeaders
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RequestLine
+import rawhttp.core.errors.InvalidHttpResponse
 import java.io.IOException
 import java.net.URI
 import javax.net.ssl.TrustManager
@@ -70,17 +76,33 @@ class PomeriumTunneler(
                                 }.configure(useTls, pomeriumHost, trustManager).use { tunnelSocket ->
                                     val writeChannel = tunnelSocket.openWriteChannel(true)
                                     val readChannel = tunnelSocket.openReadChannel()
+                                    val outputStream = writeChannel.toOutputStream()
                                     val inputStream = readChannel.toInputStream()
 
-                                    writeChannel.writeStringUtf8(
-                                        "CONNECT ${route.authority} HTTP/1.1\n" +
-                                                "Host: ${route.authority}\n" +
-                                                "Accept: */*\n" +
-                                                "Connection: keep-alive\n" +
-                                                "User-Agent: kotlin/gateway-connector\n" +
-                                                "Authorization: Pomerium $auth\n\n"
-                                    )
-                                    val response = rawhttp.core.RawHttp().parseResponse(inputStream)
+                                    RawHttpRequest(
+                                        RequestLine("CONNECT", route, HttpVersion.HTTP_1_1),
+                                        RawHttpHeaders.newBuilder()
+                                            .with("Host", route.authority)
+                                            .with("Accept", "*/*")
+                                            .with("Connection", "keep-alive")
+                                            .with("User-Agent", "kotlin/tunneler")
+                                            .with("Authorization", "Pomerium $auth")
+                                            .build(), null, null
+                                    ).apply {
+                                        writeTo(outputStream)
+                                    }
+
+                                    val response = try {
+                                        RawHttp().parseResponse(inputStream)
+                                    } catch (e: InvalidHttpResponse) {
+                                        //Expected if the remote socket is no longer active to return a bad response
+                                        if (!readChannel.isClosedForRead) {
+                                            LOG.warn("Invalid response from Pomerium: ${e.message}")
+                                        } else {
+                                            LOG.debug("Remote read channel closed during tunnel initialization")
+                                        }
+                                        return@use
+                                    }
 
                                     when (response.statusCode) {
                                         200 -> {
@@ -159,9 +181,7 @@ class PomeriumTunneler(
             openTunnels.remove(route)
             localServerSocket.close()
             selectorManager.close()
-            if (e is CancellationException) {
-
-            } else {
+            if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
             }
         }
@@ -198,6 +218,6 @@ class PomeriumTunneler(
     }
 
     companion object {
-        private val LOG = LoggerFactory.getLogger(PomeriumTunneler::class.java)
+        private val LOG = LoggerFactory.getLogger(PomeriumTunneler::class.java.name)
     }
 }
