@@ -76,7 +76,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
             )
 
             val handle = createHandle(lifetime,
-                    URI("tcp://localhost:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
+                    URI("tcp://127.0.0.1:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
                     pomeriumRoute.toString())
             lifetime.onTermination {
                 val oldHandle = runningInstances.remove(pomeriumRouteString)

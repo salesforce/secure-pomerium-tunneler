@@ -26,7 +26,9 @@ import rawhttp.core.RequestLine
 import rawhttp.core.errors.InvalidHttpResponse
 import java.io.IOException
 import java.net.URI
+import java.nio.charset.Charset
 import javax.net.ssl.TrustManager
+import kotlin.jvm.optionals.getOrNull
 import kotlin.time.Duration.Companion.seconds
 
 class PomeriumTunneler(
@@ -49,7 +51,10 @@ class PomeriumTunneler(
 
         val selectorManager = SelectorManager(Dispatchers.IO)
         val localServerSocket = aSocket(selectorManager).tcp().bind("127.0.0.1", 0)
+        val port = localServerSocket.localAddress.toJavaAddress().port
         openTunnels.add(route)
+
+        LOG.info("Starting local tunnel on 127.0.0.1:$port and tunneling to $route")
 
         lifetime.launch(Dispatchers.Default) {
             try {
@@ -89,6 +94,7 @@ class PomeriumTunneler(
                                             .with("Authorization", "Pomerium $auth")
                                             .build(), null, null
                                     ).apply {
+                                        LOG.debug("Initializing tunnel by sending CONNECT",)
                                         writeTo(outputStream)
                                     }
 
@@ -150,7 +156,10 @@ class PomeriumTunneler(
 
                                         else -> {
                                             //Error state
-                                            LOG.error("Unknown status code returned from Pomerium: ${response.statusCode}")
+                                            val body = response.body.getOrNull().use {
+                                                it?.asRawString(Charset.defaultCharset())
+                                            }
+                                            LOG.error("Unknown status code returned from Pomerium: ${response.statusCode} message: $body")
                                         }
                                     }
                                 }
@@ -186,7 +195,7 @@ class PomeriumTunneler(
             }
         }
 
-        return@withContext localServerSocket.localAddress.toJavaAddress().port
+        return@withContext port
     }
 
     fun isTunneling() = openTunnels.isNotEmpty()
