@@ -15,7 +15,7 @@ configurations {
 }
 
 dependencies {
-    val ktorVersion = "2.3.3"
+    val ktorVersion = "2.3.11"
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.2")
     api("com.jetbrains.rd:rd-framework:2023.2.2")
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
