@@ -5,17 +5,12 @@ import io.ktor.network.sockets.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.jvm.javaio.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.impl.client.HttpClients
 import org.junit.jupiter.api.Assertions
-import org.junit.runner.Description
-import org.junit.runners.model.Statement
+import org.junit.jupiter.api.extension.AfterTestExecutionCallback
+import org.junit.jupiter.api.extension.ExtensionContext
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttpHeaders
 import rawhttp.core.RawHttpResponse
@@ -23,32 +18,14 @@ import rawhttp.core.StatusLine
 import rawhttp.core.body.EagerBodyReader
 import kotlin.random.Random
 
-class MockPomerium : org.junit.rules.TestRule {
+class MockPomerium : AfterTestExecutionCallback {
     val token = Random.nextDouble().toString()
     val route = "localhost:2801"
     var requestCount = 0
 
     private var pomeriumTask: kotlinx.coroutines.Deferred<*>? = null
-    private val coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+    private val coroutineScope = kotlinx.coroutines.CoroutineScope(Dispatchers.Default)
     private var socketConnection: kotlinx.coroutines.Deferred<*>? = null
-
-    override fun apply(
-        statement: Statement,
-        description: Description) = object : Statement() {
-        override fun evaluate() {
-            pomeriumTask = null
-            try {
-                statement.evaluate()
-            } finally {
-                if (pomeriumTask != null) {
-                    runBlocking {
-                        pomeriumTask!!.cancelAndJoin()
-                    }
-                }
-                coroutineScope.cancel()
-            }
-        }
-    }
 
     suspend fun killConnection() {
         this.socketConnection?.cancelAndJoin()
@@ -116,5 +93,16 @@ class MockPomerium : org.junit.rules.TestRule {
             selectorManager.close()
         }
         return socket.localAddress.toJavaAddress().port
+    }
+
+
+    override fun afterTestExecution(context: ExtensionContext?) {
+        if (pomeriumTask != null) {
+            runBlocking {
+                pomeriumTask!!.cancelAndJoin()
+                pomeriumTask = null
+            }
+        }
+        coroutineScope.cancel()
     }
 }

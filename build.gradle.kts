@@ -1,5 +1,6 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 fun properties(key: String) = providers.gradleProperty(key)
 fun environment(key: String) = providers.environmentVariable(key)
@@ -31,8 +32,11 @@ repositories {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
     intellijPlatform {
-        gateway("2024.1.2")
+        gateway(properties("platformVersion"))
         instrumentationTools()
+        testFramework(TestFrameworkType.Platform)
+        testFramework(TestFrameworkType.JUnit5)
+        testFramework(TestFrameworkType.Bundled)
     }
     implementation(project(":tunneler")) {
         exclude("org.jetbrains.kotlinx", "kotlinx-coroutines-core")
@@ -45,6 +49,8 @@ dependencies {
         exclude("org.slf4j", "*")
     }
     testImplementation(testFixtures(project(":tunneler")))
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
     testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
 }
@@ -55,7 +61,6 @@ kotlin {
 }
 
 intellijPlatform {
-    projectName = properties("pluginName")
     version = properties("pluginVersion")
     pluginConfiguration {
         description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
@@ -69,6 +74,7 @@ intellijPlatform {
                         subList(indexOf(start) + 1, indexOf(end)).joinToString("\n").let(::markdownToHTML)
                     }
                 }
+        val changelog = project.changelog // local variable for configuration cache compatibility
         changeNotes = properties("pluginVersion").map { pluginVersion ->
             with(changelog) {
                 renderItem(
@@ -78,6 +84,10 @@ intellijPlatform {
                     Changelog.OutputType.HTML,
                 )
             }
+        }
+        ideaVersion {
+            sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
         }
     }
 }
@@ -90,6 +100,10 @@ changelog {
 tasks {
     koverReport {
         check(true)
+    }
+
+    test {
+        useJUnitPlatform()
     }
 
     signPlugin {
