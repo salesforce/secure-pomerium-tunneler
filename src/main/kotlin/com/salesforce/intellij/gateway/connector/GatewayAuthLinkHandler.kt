@@ -13,8 +13,8 @@ import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.AppIcon
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
-import com.jetbrains.rd.framework.util.launch
 import com.jetbrains.rd.util.lifetime.LifetimeDefinition
+import com.jetbrains.rd.util.threading.coroutines.launch
 import com.salesforce.pomerium.AuthLinkHandler
 import kotlinx.coroutines.Dispatchers
 import java.awt.datatransfer.StringSelection

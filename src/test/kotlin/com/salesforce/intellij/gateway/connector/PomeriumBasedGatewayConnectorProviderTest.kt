@@ -1,25 +1,26 @@
 package com.salesforce.intellij.gateway.connector
 
 import com.intellij.openapi.util.registry.Registry
-import com.intellij.testFramework.LightPlatformTestCase
+import com.intellij.testFramework.junit5.TestApplication
 import com.jetbrains.gateway.api.ConnectionRequestor
 import com.jetbrains.gateway.thinClientLink.ThinClientHandle
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.reactive.ISource
 import com.salesforce.pomerium.MockPomerium
-import org.junit.Assert
-import org.junit.Rule
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import java.net.Socket
 import kotlin.time.Duration.Companion.seconds
 
-class PomeriumBasedGatewayConnectorProviderTest: LightPlatformTestCase() {
+@TestApplication
+class PomeriumBasedGatewayConnectorProviderTest {
 
-    @Rule
-    @JvmField
-    val mockPomerium = MockPomerium()
-    fun `test connector end to end`() = kotlinx.coroutines.test.runTest(timeout = 20.seconds) {
+    @Test
+    fun `test connector end to end`() = runTest(timeout = 20.seconds) {
         val port = mockPomerium.startMockPomerium()
         Registry.get(POMERIUM_PORT_KEY).setValue(port)
 
@@ -31,7 +32,7 @@ class PomeriumBasedGatewayConnectorProviderTest: LightPlatformTestCase() {
             Socket(initialLink.host, initialLink.port).use {
                 val echo = "echo"
                 it.getOutputStream().write(echo.encodeToByteArray())
-                Assert.assertEquals(echo, String(it.getInputStream().readNBytes(4)))
+                Assertions.assertEquals(echo, String(it.getInputStream().readNBytes(4)))
                 socketConnected = true
             }
             mock<ThinClientHandle> {
@@ -54,7 +55,13 @@ class PomeriumBasedGatewayConnectorProviderTest: LightPlatformTestCase() {
             }
         }.connect(fragments, ConnectionRequestor.Local)
 
-        Assert.assertEquals(1, mockPomerium.requestCount)
-        Assert.assertTrue(socketConnected)
+        Assertions.assertEquals(1, mockPomerium.requestCount)
+        Assertions.assertTrue(socketConnected)
+    }
+
+    companion object {
+        @JvmStatic
+        @RegisterExtension
+        private val mockPomerium = MockPomerium()
     }
 }

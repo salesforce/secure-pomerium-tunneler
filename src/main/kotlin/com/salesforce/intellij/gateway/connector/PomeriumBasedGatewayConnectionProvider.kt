@@ -43,7 +43,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         }
     })
     init {
-        Disposer.register(ApplicationListenerImpl.instance, this)
+        Disposer.register(PluginDisposable.instance, this)
     }
 
     override fun isApplicable(parameters: Map<String, String>) = parameters.containsKey(PARAM_ROUTE)
