@@ -1,8 +1,14 @@
 [versions]
 # libraries
 junit = "5.11.0"
-coroutine-test = "1.9.0"
+coroutine = "1.9.0"
 mockito-kotlin = "5.4.0"
+rdFramework = "2024.3.0"
+httpClient = "4.5.14"
+rawHttp = "2.6.0"
+ktor = "2.3.12"
+slf4j = "2.0.7"
+mockWebServer = "4.11.0"
 
 # plugins
 kotlin = "2.0.20"
@@ -13,8 +19,20 @@ kover = "0.7.6"
 [libraries]
 junitJupiterApi = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit" }
 junitJupiterEngine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
-coroutineTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutine-test" }
+coroutineTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutine" }
+coroutine = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutine" }
 mockitoKotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
+rdFramework = { group = "com.jetbrains.rd", name = "rd-framework", version.ref = "rdFramework" }
+httpClient = { group = "org.apache.httpcomponents", name = "httpclient", version.ref = "httpClient" }
+rawHttp = { group = "com.athaydes.rawhttp", name = "rawhttp-core", version.ref = "rawHttp" }
+ktorClientCore = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktorClientOkhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+ktorServerCore = { group = "io.ktor", name = "ktor-server-core-jvm", version.ref = "ktor" }
+ktorServerNetty = { group = "io.ktor", name = "ktor-server-netty-jvm", version.ref = "ktor" }
+ktorNetwork = { group = "io.ktor", name = "ktor-network", version.ref = "ktor" }
+ktorNetworkTls = { group = "io.ktor", name = "ktor-network-tls", version.ref = "ktor" }
+slf4jApi = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
+mockWebServer = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockWebServer" }
 
 [plugins]
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
