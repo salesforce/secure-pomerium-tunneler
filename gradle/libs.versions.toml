@@ -1,22 +1,23 @@
 [versions]
 # libraries
-annotations = "24.0.1"
-junit = "4.13.2"
+junit = "5.11.0"
+coroutine-test = "1.9.0"
+mockito-kotlin = "5.4.0"
 
 # plugins
-dokka = "1.9.20"
 kotlin = "2.0.20"
 changelog = "2.2.0"
 gradleIntelliJPlugin = "2.0.1"
 kover = "0.7.6"
 
 [libraries]
-annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
-junit = { group = "junit", name = "junit", version.ref = "junit" }
+junitJupiterApi = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit" }
+junitJupiterEngine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
+coroutineTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutine-test" }
+mockitoKotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
 
 [plugins]
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
-dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 gradleIntelliJPlugin = { id = "org.jetbrains.intellij.platform", version.ref = "gradleIntelliJPlugin" }
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
