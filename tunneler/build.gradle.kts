@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.ktorNetworkTls)
     implementation(libs.slf4jApi)
     testRuntimeOnly(libs.junitJupiterEngine)
+    testRuntimeOnly(libs.junitPlatformLauncher)
     testFixturesImplementation(libs.mockitoKotlin)
     testFixturesImplementation(libs.coroutineTest)
     testFixturesImplementation(libs.mockWebServer)

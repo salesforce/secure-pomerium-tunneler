@@ -56,6 +56,7 @@ dependencies {
     testImplementation(testFixtures(project(":tunneler")))
     testImplementation(libs.junitJupiterApi)
     testRuntimeOnly(libs.junitJupiterEngine)
+    testRuntimeOnly(libs.junitPlatformLauncher)
     testImplementation(libs.coroutineTest)
     testImplementation(libs.mockitoKotlin)
 }

@@ -1,6 +1,6 @@
 [versions]
 # libraries
-junit = "5.11.0"
+junit = "5.12.2"
 coroutine = "1.9.0"
 mockito-kotlin = "5.4.0"
 rdFramework = "2024.3.0"
@@ -19,6 +19,8 @@ kover = "0.9.1"
 [libraries]
 junitJupiterApi = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit" }
 junitJupiterEngine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
+# JUnit Platform Launcher necessary: https://youtrack.jetbrains.com/articles/SUPPORT-A-1839/IntelliJ-IDEA-incompatible-with-JUnit-5.12-TestEngine-with-ID-junit-jupiter-failed-to-discover-tests#resolution
+junitPlatformLauncher = { group = "org.junit.platform", name = "junit-platform-launcher" }
 coroutineTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutine" }
 coroutine = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutine" }
 mockitoKotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
