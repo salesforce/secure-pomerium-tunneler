@@ -203,7 +203,8 @@ class PomeriumAuthProvider (
         }
 
         suspend fun start(): Int {
-            return server.start().resolvedConnectors().first().port
+            server.start()
+            return server.engine.resolvedConnectors().first().port
         }
 
         override fun close() {

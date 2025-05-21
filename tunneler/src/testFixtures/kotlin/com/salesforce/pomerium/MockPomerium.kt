@@ -79,7 +79,7 @@ class MockPomerium : AfterTestExecutionCallback {
                                 )
                                 response.writeTo(writeChannel.toOutputStream())
                                 requestCount++
-                                readChannel.joinTo(writeChannel, true)
+                                readChannel.copyAndClose(writeChannel)
                             }
                         }
                     }

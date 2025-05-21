@@ -105,7 +105,7 @@ class PomeriumTunneler(
                                             LOG.info("Pomerium tunnel established")
                                             launch(Dispatchers.IO) {
                                                 try {
-                                                    localReadChannel.joinTo(writeChannel, true)
+                                                    localReadChannel.copyAndClose(writeChannel)
                                                 } catch (e: Exception) {
                                                     handleException(e)
                                                 } finally {
@@ -119,7 +119,7 @@ class PomeriumTunneler(
                                                 }
                                             }
                                             try {
-                                                readChannel.joinTo(localWriteChannel, true)
+                                                readChannel.copyAndClose(localWriteChannel)
                                             } catch (e: Exception) {
                                                 handleException(e)
                                             } finally {
