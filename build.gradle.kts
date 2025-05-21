@@ -21,6 +21,12 @@ allprojects {
     repositories {
         mavenCentral()
     }
+
+    configurations.configureEach {
+        exclude(group = "ai.grazie.spell")
+        exclude(group = "ai.grazie.nlp")
+        exclude(group = "ai.grazie.utils")
+    }
 }
 
 repositories {
@@ -33,7 +39,6 @@ repositories {
 dependencies {
     intellijPlatform {
         gateway(properties("platformVersion"))
-        instrumentationTools()
         testFramework(TestFrameworkType.Platform)
         testFramework(TestFrameworkType.JUnit5)
         testFramework(TestFrameworkType.Bundled)
@@ -98,8 +103,10 @@ changelog {
     repositoryUrl = properties("pluginRepositoryUrl")
 }
 tasks {
-    koverReport {
-        check(true)
+    kover {
+        reports{
+            check(true)
+        }
     }
 
     test {
