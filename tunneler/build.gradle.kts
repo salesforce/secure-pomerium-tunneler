@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.utils.extendsFrom
 plugins {
     id("java")
     id("java-test-fixtures")
-    kotlin("jvm")
+    alias(libs.plugins.kotlin) // Kotlin support
 }
 
 group = "com.salesforce.pomerium"
