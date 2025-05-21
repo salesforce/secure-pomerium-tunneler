@@ -6,8 +6,8 @@ import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.*
-import org.apache.http.client.methods.HttpGet
-import org.apache.http.impl.client.HttpClients
+import org.apache.hc.client5.http.classic.methods.HttpGet
+import org.apache.hc.client5.http.impl.classic.HttpClients
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback
 import org.junit.jupiter.api.extension.ExtensionContext
@@ -54,7 +54,7 @@ class MockPomerium : AfterTestExecutionCallback {
                                 HttpClients.createSystem()
                                     .execute(HttpGet(redirect + "/?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=$token"))
                                     .use {
-                                        Assertions.assertEquals(200, it.statusLine.statusCode)
+                                        Assertions.assertEquals(200, it.code)
                                     }
 
                                 //This would be the response expected

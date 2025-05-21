@@ -1,10 +1,10 @@
 [versions]
 # libraries
 junit = "5.12.2"
-coroutine = "1.9.0"
+coroutine = "1.10.2"
 mockito-kotlin = "5.4.0"
-rdFramework = "2024.3.0"
-httpClient = "4.5.14"
+rdFramework = "2025.1.1"
+httpClient = "5.4.4"
 rawHttp = "2.6.0"
 ktor = "2.3.12"
 slf4j = "2.0.7"
@@ -25,7 +25,7 @@ coroutineTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-te
 coroutine = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutine" }
 mockitoKotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
 rdFramework = { group = "com.jetbrains.rd", name = "rd-framework", version.ref = "rdFramework" }
-httpClient = { group = "org.apache.httpcomponents", name = "httpclient", version.ref = "httpClient" }
+httpClient = { group = "org.apache.httpcomponents.client5", name = "httpclient5", version.ref = "httpClient" }
 rawHttp = { group = "com.athaydes.rawhttp", name = "rawhttp-core", version.ref = "rawHttp" }
 ktorClientCore = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktorClientOkhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
