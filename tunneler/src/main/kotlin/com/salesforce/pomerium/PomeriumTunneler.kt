@@ -118,32 +118,16 @@ class PomeriumTunneler(
                                             LOG.info("Pomerium tunnel established")
                                             val writer = launch(Dispatchers.IO + CoroutineName("tunneler-writer")) {
                                                 try {
-                                                    localReadChannel.copyTo(writeChannel)
+                                                    localReadChannel.copyAndClose(writeChannel)
                                                 } catch (e: Exception) {
                                                     handleException(e)
-                                                } finally {
-                                                    withContext(NonCancellable) {
-                                                        try {
-                                                            writeChannel.flushAndClose()
-                                                        } catch (e: Exception) {
-                                                            //Do nothing
-                                                        }
-                                                    }
                                                 }
                                             }
                                             val reader = launch(Dispatchers.IO + CoroutineName("tunneler-reader")) {
                                                 try {
-                                                    readChannel.copyTo(localWriteChannel)
+                                                    readChannel.copyAndClose(localWriteChannel)
                                                 } catch (e: Exception) {
                                                     handleException(e)
-                                                } finally {
-                                                    withContext(NonCancellable) {
-                                                        try {
-                                                            localWriteChannel.flushAndClose()
-                                                        } catch (e: Exception) {
-                                                            //Do nothing
-                                                        }
-                                                    }
                                                 }
                                             }
                                             joinAll(writer, reader)
