@@ -8,11 +8,24 @@ import io.ktor.network.tls.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.jvm.javaio.*
-import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.ClosedSendChannelException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
-import rawhttp.core.*
+import rawhttp.core.HttpVersion
+import rawhttp.core.RawHttp
+import rawhttp.core.RawHttpHeaders
+import rawhttp.core.RawHttpRequest
+import rawhttp.core.RequestLine
 import rawhttp.core.errors.InvalidHttpResponse
 import java.io.IOException
 import java.net.URI
@@ -103,34 +116,37 @@ class PomeriumTunneler(
                                     when (response.statusCode) {
                                         200 -> {
                                             LOG.info("Pomerium tunnel established")
-                                            launch(Dispatchers.IO) {
+                                            val writer = launch(Dispatchers.IO + CoroutineName("tunneler-writer")) {
                                                 try {
-                                                    localReadChannel.copyAndClose(writeChannel)
+                                                    localReadChannel.copyTo(writeChannel)
                                                 } catch (e: Exception) {
                                                     handleException(e)
                                                 } finally {
                                                     withContext(NonCancellable) {
                                                         try {
-                                                            tunnelSocket.close()
+                                                            writeChannel.flushAndClose()
                                                         } catch (e: Exception) {
                                                             //Do nothing
                                                         }
                                                     }
                                                 }
                                             }
-                                            try {
-                                                readChannel.copyAndClose(localWriteChannel)
-                                            } catch (e: Exception) {
-                                                handleException(e)
-                                            } finally {
-                                                withContext(NonCancellable) {
-                                                    try {
-                                                        tunnelSocket.close()
-                                                    } catch (e: Exception) {
-                                                        //Do nothing
+                                            val reader = launch(Dispatchers.IO + CoroutineName("tunneler-reader")) {
+                                                try {
+                                                    readChannel.copyTo(localWriteChannel)
+                                                } catch (e: Exception) {
+                                                    handleException(e)
+                                                } finally {
+                                                    withContext(NonCancellable) {
+                                                        try {
+                                                            localWriteChannel.flushAndClose()
+                                                        } catch (e: Exception) {
+                                                            //Do nothing
+                                                        }
                                                     }
                                                 }
                                             }
+                                            joinAll(writer, reader)
                                         }
 
                                         301, 302, 307, 308 -> {
@@ -192,7 +208,7 @@ class PomeriumTunneler(
 
     private suspend fun Socket.configure(useTls: Boolean, serverName: String, trustManager: TrustManager?): Socket {
         return if (useTls) {
-            val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
+            val handler = CoroutineExceptionHandler { _, throwable ->
                 LOG.error("Exception in the tunnel TLS translation", throwable)
             }
             tls(Dispatchers.IO + handler) {

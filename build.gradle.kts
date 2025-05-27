@@ -51,6 +51,7 @@ dependencies {
         exclude("io.ktor", "ktor-client-core")
         exclude("io.ktor", "ktor-http-jvm")
         exclude("io.ktor", "ktor-utils-jvm")
+        exclude("io.ktor", "ktor-io")
         exclude("org.slf4j", "*")
     }
     testImplementation(testFixtures(project(":tunneler")))
