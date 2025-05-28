@@ -3,11 +3,11 @@ import org.jetbrains.kotlin.gradle.utils.extendsFrom
 plugins {
     id("java")
     id("java-test-fixtures")
-    kotlin("jvm")
+    alias(libs.plugins.kotlin) // Kotlin support
 }
 
 group = "com.salesforce.pomerium"
-version = "1.0-SNAPSHOT"
+version = "1.0.1"
 
 configurations {
     testFixturesImplementation.extendsFrom(implementation)
@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.ktorNetworkTls)
     implementation(libs.slf4jApi)
     testRuntimeOnly(libs.junitJupiterEngine)
+    testRuntimeOnly(libs.junitPlatformLauncher)
     testFixturesImplementation(libs.mockitoKotlin)
     testFixturesImplementation(libs.coroutineTest)
     testFixturesImplementation(libs.mockWebServer)

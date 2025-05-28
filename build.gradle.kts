@@ -21,6 +21,12 @@ allprojects {
     repositories {
         mavenCentral()
     }
+
+    configurations.configureEach {
+        exclude(group = "ai.grazie.spell")
+        exclude(group = "ai.grazie.nlp")
+        exclude(group = "ai.grazie.utils")
+    }
 }
 
 repositories {
@@ -33,7 +39,6 @@ repositories {
 dependencies {
     intellijPlatform {
         gateway(properties("platformVersion"))
-        instrumentationTools()
         testFramework(TestFrameworkType.Platform)
         testFramework(TestFrameworkType.JUnit5)
         testFramework(TestFrameworkType.Bundled)
@@ -46,11 +51,13 @@ dependencies {
         exclude("io.ktor", "ktor-client-core")
         exclude("io.ktor", "ktor-http-jvm")
         exclude("io.ktor", "ktor-utils-jvm")
+        exclude("io.ktor", "ktor-io")
         exclude("org.slf4j", "*")
     }
     testImplementation(testFixtures(project(":tunneler")))
     testImplementation(libs.junitJupiterApi)
     testRuntimeOnly(libs.junitJupiterEngine)
+    testRuntimeOnly(libs.junitPlatformLauncher)
     testImplementation(libs.coroutineTest)
     testImplementation(libs.mockitoKotlin)
 }
@@ -98,8 +105,10 @@ changelog {
     repositoryUrl = properties("pluginRepositoryUrl")
 }
 tasks {
-    koverReport {
-        check(true)
+    kover {
+        reports{
+            check(true)
+        }
     }
 
     test {
