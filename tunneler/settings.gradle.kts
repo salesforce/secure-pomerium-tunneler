@@ -1,6 +1,6 @@
 pluginManagement {
     plugins {
-        kotlin("jvm") version "1.9.0"
+        kotlin("jvm") version "2.1.21"
     }
 }
 dependencyResolutionManagement {
