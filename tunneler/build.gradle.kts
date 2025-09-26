@@ -6,8 +6,10 @@ plugins {
     alias(libs.plugins.kotlin) // Kotlin support
 }
 
-group = "com.salesforce.pomerium"
-version = "1.0.1"
+fun properties(key: String) = providers.gradleProperty(key)
+
+group = properties("tunnelerGroup").get()
+version = properties("pluginVersion").get()
 
 configurations {
     testFixturesImplementation.extendsFrom(implementation)
