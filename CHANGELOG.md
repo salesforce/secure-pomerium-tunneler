@@ -1,9 +1,15 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
-# intellij-plugin-template Changelog
+# Secure Gateway Tunneler Plugin Changelog
 
-## 1.0.1
-- Update platform to 2025.1.1.1, and other libraries and plugins. Handle deprecations.
+
+
+## [0.0.1]
+### Added
+- Initial release of Secure Gateway Tunneler plugin
+- Integration with Pomerium for secure tunneling
+- Gateway connection provider for IntelliJ
+- Support for Pomerium authentication flows
 
 ## [Unreleased]
 ### Added
