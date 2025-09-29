@@ -4,6 +4,7 @@ plugins {
     id("java")
     id("java-test-fixtures")
     alias(libs.plugins.kotlin) // Kotlin support
+    alias(libs.plugins.changelog) // Gradle Changelog Plugin
 }
 
 group = "com.salesforce.pomerium"
@@ -32,6 +33,12 @@ dependencies {
     testFixturesImplementation(libs.coroutineTest)
     testFixturesImplementation(libs.mockWebServer)
     testFixturesImplementation(libs.junitJupiterApi)
+}
+
+// Configure Gradle Changelog Plugin for tunneler library
+changelog {
+    groups.empty()
+    repositoryUrl = "https://github.com/salesforce/secure-pomerium-tunneler"
 }
 
 tasks.test {
