@@ -194,7 +194,7 @@ class PomeriumTunneler(
                 withContext(NonCancellable) {
                     openTunnels.remove(route)
                     localServerSocket.close()
-                    // Don't close selectorManager here - it's shared!
+                    // Don't close selectorManager here since it is shared
                 }
             }
         }.invokeOnCompletion { e ->
