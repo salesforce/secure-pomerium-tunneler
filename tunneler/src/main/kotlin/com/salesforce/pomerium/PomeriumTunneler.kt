@@ -42,6 +42,8 @@ class PomeriumTunneler(
 ) {
 
     private val openTunnels = HashSet<URI>()
+    // Shared SelectorManager to prevent file descriptor exhaustion
+    private val selectorManager = SelectorManager(Dispatchers.IO)
 
     suspend fun startTunnel(
         route: URI,
@@ -52,7 +54,6 @@ class PomeriumTunneler(
 
         authProvider.getAuth(route, lifetime).await() //Populate auth if required
 
-        val selectorManager = SelectorManager(Dispatchers.IO)
         val localServerSocket = aSocket(selectorManager).tcp().bind("127.0.0.1", 0)
         val port = localServerSocket.localAddress.toJavaAddress().port
         openTunnels.add(route)
@@ -173,13 +174,10 @@ class PomeriumTunneler(
                 withContext(NonCancellable) {
                     openTunnels.remove(route)
                     localServerSocket.close()
-                    selectorManager.close()
+                    // Don't close selectorManager here - it's shared!
                 }
             }
         }.invokeOnCompletion { e ->
-            openTunnels.remove(route)
-            localServerSocket.close()
-            selectorManager.close()
             if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
             }
@@ -189,6 +187,17 @@ class PomeriumTunneler(
     }
 
     fun isTunneling() = openTunnels.isNotEmpty()
+
+    /**
+     * Closes the shared SelectorManager and releases all associated resources.
+     * Should be called when the PomeriumTunneler instance is no longer needed.
+     * 
+     * Note: This will close ALL tunnels using this PomeriumTunneler instance.
+     */
+    fun close() {
+        LOG.info("Closing PomeriumTunneler and releasing shared SelectorManager")
+        selectorManager.close()
+    }
 
     private suspend fun Socket.configure(useTls: Boolean, serverName: String, trustManager: TrustManager?): Socket {
         return if (useTls) {
