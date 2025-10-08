@@ -54,14 +54,19 @@ class PomeriumAuthProviderTest {
 
         val request = server.takeRequest()
         val query = request.requestUrl!!.toUrl().query
-        val parts = query.split("=")
-        Assertions.assertEquals(PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM, parts[0])
-        val localServer = URLDecoder.decode(parts[1], Charset.defaultCharset())
+        val queryParams = query.split("&").associate { 
+            val (key, value) = it.split("=", limit = 2)
+            key to URLDecoder.decode(value, Charset.defaultCharset())
+        }
+        
+        Assertions.assertTrue(queryParams.containsKey(PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM))
+        val localServer = queryParams[PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM]!!
+        val state = queryParams["state"]!!
 
         val testJwt = "someRansomTestString"
         val jwtRequest = Request.Builder()
             .get()
-            .url(localServer + "?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=${testJwt}")
+            .url(localServer + "?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=${testJwt}&state=${state}")
             .build()
         OkHttpClient().newCall(jwtRequest).execute().use {
             Assertions.assertTrue(it.isSuccessful)

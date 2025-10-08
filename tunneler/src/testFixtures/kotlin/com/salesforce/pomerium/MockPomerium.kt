@@ -17,6 +17,8 @@ import rawhttp.core.RawHttpResponse
 import rawhttp.core.StatusLine
 import rawhttp.core.body.EagerBodyReader
 import kotlin.random.Random
+import java.net.URLDecoder
+import java.nio.charset.Charset
 
 class MockPomerium : AfterTestExecutionCallback {
     val token = Random.nextDouble().toString()
@@ -48,13 +50,15 @@ class MockPomerium : AfterTestExecutionCallback {
                                 // This is a hack, it assumes the server is listening for the jwt response
                                 // which is typically initiated by a browser, but this is a way to prevent
                                 // a browser dependency in tests
-                                val redirect = request.uri.query.split("&").first {
-                                    it.startsWith(PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM)
-                                }.split("=")[1]
+                                val queryParams = request.uri.query.split("&").associate { param: String -> 
+                                    val (key, value) = param.split("=", limit = 2)
+                                    key to URLDecoder.decode(value, Charset.defaultCharset())
+                                }
+                                val redirect = queryParams[PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM]!!
+                                val state = queryParams["state"]!!
                                 HttpClients.createSystem()
-                                    .execute(HttpGet(redirect + "/?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=$token"))
-                                    .use {
-                                        Assertions.assertEquals(200, it.code)
+                                    .execute(HttpGet(redirect + "/?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=$token&state=$state")) { response ->
+                                        Assertions.assertEquals(200, response.code)
                                     }
 
                                 //This would be the response expected
