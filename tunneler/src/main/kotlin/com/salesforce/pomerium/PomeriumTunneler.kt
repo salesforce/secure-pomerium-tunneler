@@ -161,6 +161,26 @@ class PomeriumTunneler(
                                 }
 
                                 is UnresolvedAddressException -> delay(1.seconds)
+                                is IOException -> {
+                                    if (e.message?.contains("Too many open files") == true) {
+                                        LOG.error("File descriptor exhaustion detected")
+                                        LOG.error("Consider increasing OS file descriptor limits or reducing concurrent tunnels")
+                                        // Add delay to prevent cascade failures
+                                        delay(5.seconds)
+                                    } else {
+                                        LOG.error("IO exception during local tunneling", e)
+                                    }
+                                }
+                                is IllegalStateException -> {
+                                    if (e.message?.contains("failed to create a child event loop") == true) {
+                                        LOG.error("Netty event loop creation failed - likely due to file descriptor exhaustion")
+                                        LOG.error("This indicates the system has run out of file descriptors")
+                                        // Add longer delay for Netty issues
+                                        delay(10.seconds)
+                                    } else {
+                                        LOG.error("Illegal state exception during local tunneling", e)
+                                    }
+                                }
                                 else -> LOG.error("Exception occurred during local tunneling", e)
                             }
                         } finally {
