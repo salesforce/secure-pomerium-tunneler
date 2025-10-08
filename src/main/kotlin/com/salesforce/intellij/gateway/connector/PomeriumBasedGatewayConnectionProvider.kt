@@ -118,9 +118,9 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         private val runningInstances = HashMap<String, ThinClientHandle>()
     }
 
-           override fun dispose() {
-               LOG.info("Disposing PomeriumBasedGatewayConnectionProvider")
-               tunneler.close()
-               PomeriumAuthService.close()
-           }
+       override fun dispose() {
+           LOG.info("Disposing PomeriumBasedGatewayConnectionProvider")
+           tunneler.close()
+           PomeriumAuthService.close()
+       }
 }
