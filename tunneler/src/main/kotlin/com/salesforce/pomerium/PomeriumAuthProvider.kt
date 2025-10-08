@@ -45,6 +45,9 @@ class PomeriumAuthProvider (
     private val routeToCredKeyMap = HashMap<URI, CredentialKey>()
     private val lifetimesRequestingToken = HashMap<CredentialKey, MutableSet<Lifetime>>()
     private val existingRoutes = HashSet<URI>()
+    
+    // Shared callback server to prevent Netty EventLoopGroup proliferation
+    private val sharedCallbackServer = SharedCallbackServer()
 
     private val client = HttpClient(OkHttp) {
         if (sslSocketFactory != null && trustManager != null) {
@@ -78,20 +81,17 @@ class PomeriumAuthProvider (
 
             val jobLifetime = Lifetime.Eternal.createNested()
 
-            val callbackServer = PomeriumAuthCallbackServer()
-            val serverPort = callbackServer.start()
+            val serverPort = sharedCallbackServer.getPort()
+            LOG.info("Using shared HTTP server on port $serverPort for pomerium auth token callback")
 
-            LOG.info("Starting HTTP server on port $serverPort for pomerium auth token callback")
-
-            val authLink = getAuthLink(route, pomeriumPort, serverPort)
+            val state = java.util.UUID.randomUUID().toString()
+            val authLink = getAuthLink(route, pomeriumPort, serverPort, state)
             val credString = getCredString(authLink)
             return@withContext credKeyToMutexMap.computeIfAbsent(credString) { Mutex() }.withLock {
                 credentialStore.getToken(credString)?.let { auth ->
-                    callbackServer.close()
                     return@withLock CompletableDeferred(auth)
                 }
                 credKeyToAuthJobMap[credString]?.let {
-                    callbackServer.close()
                     LOG.debug("Existing auth job found, reusing job")
                     lifetimesRequestingToken[credString]!!.add(lifetime)
                     lifetime.onTermination {
@@ -103,7 +103,7 @@ class PomeriumAuthProvider (
                 val isNewRoute = existingRoutes.add(route)
                 val getToken = jobLifetime.async(Dispatchers.Default) {
                     try {
-                        val auth = callbackServer.getToken()
+                        val auth = sharedCallbackServer.getToken(state)
                         LOG.info("Successfully acquired Pomerium authentication")
                         credentialStore.setToken(credString, auth)
                         return@async auth
@@ -111,9 +111,7 @@ class PomeriumAuthProvider (
                         withContext(NonCancellable) {
                             credKeyToMutexMap[credString]!!.withLock {
                                 credKeyToAuthJobMap.remove(credString)
-                                callbackServer.close()
                             }
-
                         }
                     }
                 }
@@ -126,7 +124,7 @@ class PomeriumAuthProvider (
 
                 linkHandler.handleAuthLink({
                     runBlocking {
-                        getAuthLink(route, pomeriumPort, serverPort)
+                        getAuthLink(route, pomeriumPort, serverPort, state)
                     }
                 }, jobLifetime, isNewRoute)
 
@@ -136,8 +134,8 @@ class PomeriumAuthProvider (
 
     override suspend fun invalidate(route: URI) {
         (routeToCredKeyMap.remove(route) ?: run {
-            //Port does not matter in this case
-            val link = getAuthLink(route, pomeriumPort, 8080)
+            //Port and state do not matter in this case
+            val link = getAuthLink(route, pomeriumPort, 8080, "dummy")
             getCredString(link)
         }).also {
             credKeyToMutexMap.computeIfAbsent(it) { Mutex() }.withLock {
@@ -158,21 +156,31 @@ class PomeriumAuthProvider (
      * Returns the authentication service host used by the route
      */
     suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
-        // port 8080 is not ever used, but we have to pass some port to Pomerium
-        return getAuthLink(route, pomeriumPort, 8080).host
+        // port and state is not ever used, but we have to pass some port to Pomerium
+        return getAuthLink(route, pomeriumPort, 8080, "dummy").host
     }
 
-    private suspend fun getAuthLink(route: URI, pomeriumPort: Int, callbackServerPort: Int): URI {
+    private suspend fun getAuthLink(route: URI, pomeriumPort: Int, callbackServerPort: Int, state: String): URI {
         val uri = URIBuilder(route)
             .setScheme(if (pomeriumPort == 443) "https" else "http")
             .setPort(pomeriumPort)
             .setPath(POMERIUM_LOGIN_ENDPOINT)
             .setParameter(POMERIUM_LOGIN_REDIRECT_PARAM, "http://localhost:$callbackServerPort")
+            .setParameter("state", state)
             .build()
         val link = client.get(uri.toURL()).bodyAsText()
         return URI.create(link)
     }
 
+
+    /**
+     * Closes the shared callback server and releases all associated resources.
+     * Should be called when the PomeriumAuthProvider instance is no longer needed.
+     */
+    fun close() {
+        LOG.info("Closing PomeriumAuthProvider and releasing shared callback server")
+        sharedCallbackServer.close()
+    }
 
     companion object {
         const val POMERIUM_LOGIN_ENDPOINT = "/.pomerium/api/v1/login"
@@ -184,45 +192,79 @@ class PomeriumAuthProvider (
         fun getCredString(authLink: URI): CredentialKey = "Pomerium instance ${authLink.host}"
     }
 
-    private class PomeriumAuthCallbackServer : Closeable {
-        val tokenFuture = CompletableDeferred<String>()
-
-        val server = embeddedServer(Netty, 0) {
-            routing {
-                get("/") {
-                    val jwtQuery = call.parameters[POMERIUM_JWT_QUERY_PARAM]
-                    if (jwtQuery != null) {
-                        call.respondText(RESPONSE)
-                        tokenFuture.complete(jwtQuery)
-                    } else {
-                        call.respondText(RESPONSE_FAILURE)
+    /**
+     * Shared callback server that prevents Netty EventLoopGroup proliferation.
+     * All authentication requests use the same Netty server instance.
+     * Thread-safe implementation with proper synchronization.
+     */
+    private class SharedCallbackServer : Closeable {
+        private val tokenFutures = ConcurrentHashMap<String, CompletableDeferred<String>>()
+        private var server: io.ktor.server.engine.EmbeddedServer<*, *>? = null
+        private var serverPort: Int = 0
+        private val serverMutex = kotlinx.coroutines.sync.Mutex()
+        
+        init {
+            runBlocking { startServer() }
+        }
+        
+        private suspend fun startServer() {
+            serverMutex.withLock {
+                if (server == null) {
+                    server = embeddedServer(Netty, 0) {
+                        routing {
+                            get("/") {
+                                val jwtQuery = call.parameters[POMERIUM_JWT_QUERY_PARAM]
+                                val state = call.parameters["state"] // Use state to identify the request
+                                
+                                if (jwtQuery != null && state != null) {
+                                    call.respondText(RESPONSE)
+                                    tokenFutures[state]?.complete(jwtQuery)
+                                } else {
+                                    call.respondText(RESPONSE_FAILURE)
+                                }
+                            }
+                            route("*") {
+                                handle {
+                                    call.respondText(RESPONSE_FAILURE)
+                                }
+                            }
+                        }
                     }
-                }
-                route("*") {
-                    handle {
-                        call.respondText(RESPONSE_FAILURE)
-                    }
+                    server!!.start()
+                    serverPort = server!!.engine.resolvedConnectors().first().port
+                    LOG.info("Started shared callback server on port $serverPort")
                 }
             }
         }
-
-        suspend fun start(): Int {
-            server.start()
-            return server.engine.resolvedConnectors().first().port
+        
+        fun getPort(): Int {
+            return serverPort
         }
-
+        
+        suspend fun getToken(state: String): String {
+            val tokenFuture = CompletableDeferred<String>()
+            tokenFutures[state] = tokenFuture
+            
+            try {
+                return tokenFuture.await()
+            } finally {
+                tokenFutures.remove(state)
+            }
+        }
+        
         override fun close() {
-            server.stop()
+            runBlocking {
+                serverMutex.withLock {
+                    server?.stop()
+                    server = null
+                    LOG.info("Stopped shared callback server")
+                }
+            }
         }
-
-        suspend fun getToken(): String {
-            return tokenFuture.await()
-        }
-
+        
         companion object {
             const val RESPONSE = "Authentication successful. You may now close this tab."
             const val RESPONSE_FAILURE = "Failed to capture Pomerium jwt."
         }
-
     }
 }
