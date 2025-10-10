@@ -61,7 +61,6 @@ class PomeriumAuthProvider (
 
     override suspend fun getAuth(route: URI, lifetime: Lifetime): Deferred<String> =
         withContext(Dispatchers.Default) {
-            LOG.info("Starting authentication for route: $route")
             //Check for existing job. Note, this is not guaranteed to be thread safe, but it does not require a network call.
             //There is another, thread-safe check below.
             routeToCredKeyMap[route]?.let {
@@ -104,7 +103,6 @@ class PomeriumAuthProvider (
                 val isNewRoute = existingRoutes.add(route)
                 val getToken = jobLifetime.async(Dispatchers.Default) {
                     try {
-                        LOG.info("Waiting for authentication callback with state: $state")
                         val auth = sharedCallbackServer.getToken(state)
                         LOG.info("Successfully acquired Pomerium authentication")
                         credentialStore.setToken(credString, auth)
@@ -124,13 +122,12 @@ class PomeriumAuthProvider (
                     onLifetimeTermination(lifetime, credString, getToken)
                 }
 
-                    val authLink = getAuthLink(route, pomeriumPort, serverPort, state)
-                    LOG.info("Generated authentication link: $authLink")
-                    linkHandler.handleAuthLink({
-                        runBlocking {
-                            authLink
-                        }
-                    }, jobLifetime, isNewRoute)
+                val authLink = getAuthLink(route, pomeriumPort, serverPort, state)
+                linkHandler.handleAuthLink({
+                    runBlocking {
+                        authLink
+                    }
+                }, jobLifetime, isNewRoute)
 
                 return@withLock getToken
             }

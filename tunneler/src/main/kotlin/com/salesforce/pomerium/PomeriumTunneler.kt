@@ -70,14 +70,8 @@ class PomeriumTunneler(
             try {
                 while (isActive) {
                     val localSocket = try {
-                        withTimeout(1.seconds) {
-                            localServerSocket.accept()
-                        }
+                        localServerSocket.accept()
                     } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.TimeoutCancellationException) {
-                            // Timeout is expected, continue the loop
-                            continue
-                        }
                         LOG.info("Local tunneling socket failed to accept connection", e)
                         continue
                     }
@@ -204,13 +198,8 @@ class PomeriumTunneler(
                 }
             } finally {
                 withContext(NonCancellable) {
-                    try {
-                        localServerSocket.close()
-                        LOG.debug("Closed local server socket in finally block")
-                    } catch (e: Exception) {
-                        LOG.warn("Error closing local server socket in finally block", e)
-                    }
                     openTunnels.remove(route)
+                    localServerSocket.close()
                     // Don't close selectorManager here since it is shared
                 }
             }
