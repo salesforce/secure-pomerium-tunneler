@@ -170,15 +170,6 @@ class PomeriumAuthProvider (
         return URI.create(link)
     }
 
-
-    /**
-     * Closes the PomeriumAuthProvider and releases all associated resources.
-     * Individual callback servers manage their own lifecycle and cleanup.
-     */
-    suspend fun close() {
-        LOG.debug("Closing PomeriumAuthProvider - individual servers manage their own lifecycle")
-    }
-
     companion object {
         const val POMERIUM_LOGIN_ENDPOINT = "/.pomerium/api/v1/login"
         const val POMERIUM_LOGIN_REDIRECT_PARAM = "pomerium_redirect_uri"
@@ -190,8 +181,7 @@ class PomeriumAuthProvider (
     }
 
     /**
-     * Callback server for each authentication request.
-     * Based on the original PomeriumAuthCallbackServer with added timeout cleanup to prevent FD exhaustion.
+     * Callback server for each authentication request with added timeout cleanup to prevent FD exhaustion.
      */
     private class PomeriumAuthCallbackServer(
         private val timeoutMinutes: Int = 10
@@ -222,7 +212,7 @@ class PomeriumAuthProvider (
             // Schedule automatic cleanup to prevent FD exhaustion
             cleanupJob = GlobalScope.launch {
                 delay(timeoutMinutes * 60 * 1000L) // 5 minutes
-                LOG.info("Auto-closing PomeriumAuthCallbackServer due to timeout")
+                LOG.debug("Automatically closing PomeriumAuthCallbackServer due to timeout")
                 close()
             }
         }

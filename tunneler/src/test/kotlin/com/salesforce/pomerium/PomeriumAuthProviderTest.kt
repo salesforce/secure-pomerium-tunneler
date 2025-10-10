@@ -3,7 +3,6 @@ package com.salesforce.pomerium
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.lifetime.LifetimeDefinition
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.mockwebserver.MockResponse
@@ -40,7 +39,7 @@ class PomeriumAuthProviderTest {
     private val lifetime = Lifetime.Eternal.createNested()
 
     @Test
-    fun `test auth flow end to end`() = runBlocking {
+    fun `test auth flow end to end`() = runTest {
         val testAuthEndpoint = "http://example.com"
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody(testAuthEndpoint))
@@ -77,7 +76,6 @@ class PomeriumAuthProviderTest {
                 )
             )
         )
-        authService.close() // Clean up the shared callback server
     }
 
     @Test
