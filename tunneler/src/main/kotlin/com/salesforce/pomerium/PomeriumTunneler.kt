@@ -49,6 +49,8 @@ class PomeriumTunneler(
     private val selectorManager = SelectorManager(Dispatchers.IO)
     // Coroutine scope for managing all tunnel coroutines
     private val tunnelScope = CoroutineScope(Dispatchers.Default + CoroutineName("PomeriumTunneler"))
+    // Track active lifetimes to cancel tunnelScope when any lifetime is terminated
+    private val activeLifetimes = mutableSetOf<Lifetime>()
 
     suspend fun startTunnel(
         route: URI,
@@ -206,6 +208,16 @@ class PomeriumTunneler(
         }.invokeOnCompletion { e ->
             if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
+            }
+        }
+
+        // Track the lifetime and cancel tunnelScope when it's terminated
+        activeLifetimes.add(lifetime)
+        lifetime.onTermination {
+            activeLifetimes.remove(lifetime)
+            if (activeLifetimes.isEmpty()) {
+                // Cancel the entire tunnelScope when no lifetimes are active
+                tunnelScope.cancel()
             }
         }
 
