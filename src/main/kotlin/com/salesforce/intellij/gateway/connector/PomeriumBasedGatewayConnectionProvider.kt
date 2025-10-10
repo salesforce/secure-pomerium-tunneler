@@ -121,7 +121,5 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
    override fun dispose() {
        LOG.debug("Disposing PomeriumBasedGatewayConnectionProvider")
        tunneler.close()
-       // Individual callback servers manage their own lifecycle
-       // No need to close PomeriumAuthService as it doesn't hold shared resources
    }
 }
