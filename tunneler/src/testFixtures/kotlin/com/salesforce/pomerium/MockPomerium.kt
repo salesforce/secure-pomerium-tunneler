@@ -55,9 +55,8 @@ class MockPomerium : AfterTestExecutionCallback {
                                     key to URLDecoder.decode(value, Charset.defaultCharset())
                                 }
                                 val redirect = queryParams[PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM]!!
-                                val state = queryParams["state"]!!
                                 HttpClients.createSystem()
-                                    .execute(HttpGet(redirect + "/?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=$token&state=$state")) { response ->
+                                    .execute(HttpGet(redirect + "/?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=$token")) { response ->
                                         Assertions.assertEquals(200, response.code)
                                     }
 
