@@ -179,7 +179,7 @@ class PomeriumAuthProvider (
      * Should be called when the PomeriumAuthProvider instance is no longer needed.
      */
     fun close() {
-        LOG.info("Closing PomeriumAuthProvider and releasing shared callback server")
+        LOG.debug("Closing PomeriumAuthProvider and releasing shared callback server")
         sharedCallbackServer.close()
     }
 
