@@ -155,7 +155,7 @@ class PomeriumAuthProvider (
      * Returns the authentication service host used by the route
      */
     suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
-        // port is not ever used, but we have to pass some port to Pomerium
+        // port 8080 is never used, but we have to pass some port to Pomerium
         return getAuthLink(route, pomeriumPort, 8080).host
     }
 
@@ -188,6 +188,7 @@ class PomeriumAuthProvider (
     ) : Closeable {
         val tokenFuture = CompletableDeferred<String>()
         private val cleanupJob: Job
+        private val serverScope = CoroutineScope(Dispatchers.Default + CoroutineName("PomeriumAuthCallbackServer"))
 
         val server = embeddedServer(Netty, 0) {
             routing {
@@ -210,8 +211,8 @@ class PomeriumAuthProvider (
 
         init {
             // Schedule automatic cleanup to prevent FD exhaustion
-            cleanupJob = GlobalScope.launch {
-                delay(timeoutMinutes * 60 * 1000L) // 5 minutes
+            cleanupJob = serverScope.launch {
+                delay(timeoutMinutes * 60 * 1000L) // 10 minutes
                 LOG.debug("Automatically closing PomeriumAuthCallbackServer due to timeout")
                 close()
             }
@@ -224,6 +225,7 @@ class PomeriumAuthProvider (
 
         override fun close() {
             cleanupJob.cancel()
+            serverScope.cancel()
             try {
                 server.stop(1000, 2000) // Stop with 1s grace period, 2s timeout
                 LOG.debug("Stopped PomeriumAuthCallbackServer")
