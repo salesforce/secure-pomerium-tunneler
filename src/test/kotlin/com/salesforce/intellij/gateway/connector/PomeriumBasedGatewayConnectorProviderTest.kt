@@ -7,9 +7,11 @@ import com.jetbrains.gateway.thinClientLink.ThinClientHandle
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.reactive.ISource
 import com.salesforce.pomerium.MockPomerium
+import com.salesforce.intellij.gateway.connector.POMERIUM_PORT_KEY
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
@@ -20,8 +22,14 @@ import kotlin.time.Duration.Companion.seconds
 class PomeriumBasedGatewayConnectorProviderTest {
 
     @Test
+    @Timeout(90) // 90 seconds timeout
     fun `test connector end to end`() {
-        val port = runBlocking { mockPomerium.startMockPomerium() }
+        println("Starting test...")
+        val port = runBlocking { 
+            println("Starting mock Pomerium...")
+            mockPomerium.startMockPomerium() 
+        }
+        println("Mock Pomerium started on port $port")
         Registry.get(POMERIUM_PORT_KEY).setValue(port)
 
         val fragments = mapOf(PomeriumBasedGatewayConnectionProvider.PARAM_ROUTE to "tcp+http://${mockPomerium.route}",
@@ -56,14 +64,23 @@ class PomeriumBasedGatewayConnectorProviderTest {
         }
         
         try {
+            println("Starting connection...")
             runBlocking {
                 provider.connect(fragments, ConnectionRequestor.Local)
             }
+            println("Connection completed")
+            
             Assertions.assertEquals(1, mockPomerium.requestCount)
             Assertions.assertTrue(socketConnected)
+            println("Test assertions passed")
         } finally {
             // Ensure proper cleanup
+            println("Cleaning up...")
             provider.dispose()
+            println("Cleanup completed")
+            
+            // Allow time for threads to terminate naturally
+            Thread.sleep(1000)
         }
     }
 

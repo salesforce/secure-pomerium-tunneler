@@ -11,15 +11,18 @@ import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttp
@@ -44,6 +47,8 @@ class PomeriumTunneler(
     private val openTunnels = HashSet<URI>()
     // Shared SelectorManager to prevent file descriptor exhaustion
     private val selectorManager = SelectorManager(Dispatchers.IO)
+    // Coroutine scope for managing all tunnel coroutines
+    private val tunnelScope = CoroutineScope(Dispatchers.Default + CoroutineName("PomeriumTunneler"))
 
     suspend fun startTunnel(
         route: URI,
@@ -60,13 +65,20 @@ class PomeriumTunneler(
 
         LOG.info("Starting local tunnel on 127.0.0.1:$port and tunneling to $route")
 
-        lifetime.launch(Dispatchers.Default) {
+
+        tunnelScope.launch(Dispatchers.Default) {
             try {
                 while (isActive) {
                     val localSocket = try {
-                        localServerSocket.accept()
+                        withTimeout(1.seconds) {
+                            localServerSocket.accept()
+                        }
                     } catch (e: Exception) {
-                        LOG.info("Local tunneling socket failed to accept connection")
+                        if (e is kotlinx.coroutines.TimeoutCancellationException) {
+                            // Timeout is expected, continue the loop
+                            continue
+                        }
+                        LOG.info("Local tunneling socket failed to accept connection", e)
                         continue
                     }
                     launch(Dispatchers.IO) {
@@ -192,8 +204,13 @@ class PomeriumTunneler(
                 }
             } finally {
                 withContext(NonCancellable) {
+                    try {
+                        localServerSocket.close()
+                        LOG.debug("Closed local server socket in finally block")
+                    } catch (e: Exception) {
+                        LOG.warn("Error closing local server socket in finally block", e)
+                    }
                     openTunnels.remove(route)
-                    localServerSocket.close()
                     // Don't close selectorManager here since it is shared
                 }
             }
@@ -216,7 +233,14 @@ class PomeriumTunneler(
      */
     fun close() {
         LOG.info("Closing PomeriumTunneler and releasing shared SelectorManager")
-        selectorManager.close()
+        runBlocking {
+            // Cancel all tunnel coroutines
+            tunnelScope.cancel()
+            // Wait a bit for coroutines to complete cancellation
+            delay(100)
+            // Close the SelectorManager
+            selectorManager.close()
+        }
     }
 
     private suspend fun Socket.configure(useTls: Boolean, serverName: String, trustManager: TrustManager?): Socket {

@@ -61,6 +61,7 @@ class PomeriumAuthProvider (
 
     override suspend fun getAuth(route: URI, lifetime: Lifetime): Deferred<String> =
         withContext(Dispatchers.Default) {
+            LOG.info("Starting authentication for route: $route")
             //Check for existing job. Note, this is not guaranteed to be thread safe, but it does not require a network call.
             //There is another, thread-safe check below.
             routeToCredKeyMap[route]?.let {
@@ -103,6 +104,7 @@ class PomeriumAuthProvider (
                 val isNewRoute = existingRoutes.add(route)
                 val getToken = jobLifetime.async(Dispatchers.Default) {
                     try {
+                        LOG.info("Waiting for authentication callback with state: $state")
                         val auth = sharedCallbackServer.getToken(state)
                         LOG.info("Successfully acquired Pomerium authentication")
                         credentialStore.setToken(credString, auth)
@@ -122,11 +124,13 @@ class PomeriumAuthProvider (
                     onLifetimeTermination(lifetime, credString, getToken)
                 }
 
-                linkHandler.handleAuthLink({
-                    runBlocking {
-                        getAuthLink(route, pomeriumPort, serverPort, state)
-                    }
-                }, jobLifetime, isNewRoute)
+                    val authLink = getAuthLink(route, pomeriumPort, serverPort, state)
+                    LOG.info("Generated authentication link: $authLink")
+                    linkHandler.handleAuthLink({
+                        runBlocking {
+                            authLink
+                        }
+                    }, jobLifetime, isNewRoute)
 
                 return@withLock getToken
             }
@@ -255,9 +259,15 @@ class PomeriumAuthProvider (
         override fun close() {
             runBlocking {
                 serverMutex.withLock {
-                    server?.stop()
+                    server?.let { s ->
+                        try {
+                            s.stop(1000, 2000) // Stop with 1s grace period, 2s timeout
+                            LOG.info("Stopped shared callback server")
+                        } catch (e: Exception) {
+                            LOG.warn("Error stopping shared callback server", e)
+                        }
+                    }
                     server = null
-                    LOG.info("Stopped shared callback server")
                 }
             }
         }
