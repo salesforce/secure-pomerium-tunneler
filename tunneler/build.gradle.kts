@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.salesforce.pomerium"
-version = "1.0.1"
+version = "1.0.2"
 
 configurations {
     testFixturesImplementation.extendsFrom(implementation)
