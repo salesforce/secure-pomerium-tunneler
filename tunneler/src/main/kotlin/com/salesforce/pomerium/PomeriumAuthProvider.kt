@@ -196,7 +196,7 @@ class PomeriumAuthProvider (
     /**
      * Shared callback server that prevents Netty EventLoopGroup proliferation.
      * All authentication requests use the same Netty server instance.
-     * Thread-safe implementation with proper synchronization.
+     * It uses thread-safe implementation with proper synchronization.
      */
     private class SharedCallbackServer : Closeable {
         private val tokenFutures = ConcurrentHashMap<String, CompletableDeferred<String>>()
@@ -233,7 +233,7 @@ class PomeriumAuthProvider (
                     }
                     server!!.start()
                     serverPort = server!!.engine.resolvedConnectors().first().port
-                    LOG.info("Started shared callback server on port $serverPort")
+                    LOG.debug("Started shared callback server on port $serverPort")
                 }
             }
         }
