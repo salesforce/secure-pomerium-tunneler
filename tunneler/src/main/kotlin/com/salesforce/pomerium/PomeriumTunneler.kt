@@ -221,7 +221,7 @@ class PomeriumTunneler(
      * Note: This will close ALL tunnels using this PomeriumTunneler instance.
      */
     fun close() {
-        LOG.info("Closing PomeriumTunneler and releasing shared SelectorManager")
+        LOG.debug("Closing PomeriumTunneler and releasing shared SelectorManager")
         runBlocking {
             // Cancel all tunnel coroutines
             tunnelScope.cancel()
