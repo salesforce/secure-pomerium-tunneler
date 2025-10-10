@@ -43,11 +43,6 @@ class PomeriumAuthProvider (
     private val existingRoutes = HashSet<URI>()
 
     private val client = HttpClient(OkHttp) {
-        install(io.ktor.client.plugins.HttpTimeout) {
-            requestTimeoutMillis = 60000 // 60 seconds
-            connectTimeoutMillis = 60000
-            socketTimeoutMillis = 60000
-        }
         if (sslSocketFactory != null && trustManager != null) {
             engine {
                 config {

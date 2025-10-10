@@ -13,8 +13,8 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -74,7 +74,7 @@ class PomeriumTunneler(
                     val localSocket = try {
                         localServerSocket.accept()
                     } catch (e: Exception) {
-                        LOG.info("Local tunneling socket failed to accept connection", e)
+                        LOG.info("Local tunneling socket failed to accept connection: ${e.message}")
                         continue
                     }
                     launch(Dispatchers.IO) {
@@ -229,8 +229,6 @@ class PomeriumTunneler(
     /**
      * Closes the shared SelectorManager and releases all associated resources.
      * Should be called when the PomeriumTunneler instance is no longer needed.
-     * 
-     * Note: This will close ALL tunnels using this PomeriumTunneler instance.
      */
     fun close() {
         LOG.debug("Closing PomeriumTunneler and releasing shared SelectorManager")
