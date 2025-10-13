@@ -106,9 +106,13 @@ changelog {
 }
 tasks {
     kover {
-        reports{
+        reports {
             check(true)
         }
+    }
+
+    check {
+        dependsOn("koverXmlReport")
     }
 
     test {

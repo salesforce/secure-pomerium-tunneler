@@ -119,13 +119,9 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
-      # Run tests
-      - name: Run Tests
+      # Run tests and coverage
+      - name: Run Tests and Coverage
         run: ./gradlew check
-
-      # Generate Kover XML coverage report
-      - name: Generate Kover XML coverage report
-        run: ./gradlew koverXmlReport
 
       # Collect Tests Result of failed tests
       - name: Collect Tests Result
