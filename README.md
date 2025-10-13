@@ -1,6 +1,6 @@
 # Secure Gateway Tunneler
 
-[![codecov](https://codecov.io/github/AdwaitChavan/secure-pomerium-tunneler/graph/badge.svg?token=OBCNTQFDOH)](https://codecov.io/github/AdwaitChavan/secure-pomerium-tunneler)
+[![codecov](https://codecov.io/github/salesforce/secure-pomerium-tunneler/graph/badge.svg?token=R0HHUDVA30)](https://codecov.io/github/salesforce/secure-pomerium-tunneler)
 
 <!-- Plugin description -->
 A Jetbrains Gateway plugin which handles authentication and tunneling through to a
