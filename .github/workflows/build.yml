@@ -119,8 +119,8 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
-      # Run tests
-      - name: Run Tests
+      # Run tests and coverage
+      - name: Run Tests and Coverage
         run: ./gradlew check
 
       # Collect Tests Result of failed tests
