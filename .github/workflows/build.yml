@@ -123,6 +123,10 @@ jobs:
       - name: Run Tests
         run: ./gradlew check
 
+      # Generate Kover XML coverage report
+      - name: Generate Kover XML coverage report
+        run: ./gradlew koverXmlReport
+
       # Collect Tests Result of failed tests
       - name: Collect Tests Result
         if: ${{ failure() }}
