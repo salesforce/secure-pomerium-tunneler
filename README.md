@@ -1,5 +1,7 @@
 # Secure Gateway Tunneler
 
+[![codecov](https://codecov.io/github/AdwaitChavan/secure-pomerium-tunneler/graph/badge.svg?token=OBCNTQFDOH)](https://codecov.io/github/AdwaitChavan/secure-pomerium-tunneler)
+
 <!-- Plugin description -->
 A Jetbrains Gateway plugin which handles authentication and tunneling through to a
 [Pomerium](https://pomerium.io) route for connecting to a IntelliJ backend.
