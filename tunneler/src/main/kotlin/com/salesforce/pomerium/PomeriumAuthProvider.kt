@@ -85,9 +85,11 @@ class PomeriumAuthProvider (
             val credString = getCredString(authLink)
             return@withContext credKeyToMutexMap.computeIfAbsent(credString) { Mutex() }.withLock {
                 credentialStore.getToken(credString)?.let { auth ->
+                    callbackServer.close()
                     return@withLock CompletableDeferred(auth)
                 }
                 credKeyToAuthJobMap[credString]?.let {
+                    callbackServer.close()
                     LOG.debug("Existing auth job found, reusing job")
                     lifetimesRequestingToken[credString]!!.add(lifetime)
                     lifetime.onTermination {
