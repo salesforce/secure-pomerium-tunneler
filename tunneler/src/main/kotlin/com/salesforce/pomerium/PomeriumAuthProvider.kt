@@ -22,6 +22,7 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Service for getting authentication for pomerium controlled routes.
@@ -213,7 +214,8 @@ class PomeriumAuthProvider (
         init {
             // Schedule automatic cleanup to prevent FD exhaustion
             cleanupJob = serverScope.launch {
-                delay(timeoutMinutes * 60 * 1000L) // 10 minutes
+
+                delay(timeoutMinutes.minutes) // 10 minutes
                 LOG.debug("Automatically closing PomeriumAuthCallbackServer due to timeout")
                 close()
             }
