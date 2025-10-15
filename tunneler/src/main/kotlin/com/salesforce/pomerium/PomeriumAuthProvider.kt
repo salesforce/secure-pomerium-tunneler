@@ -106,8 +106,8 @@ class PomeriumAuthProvider (
                         credentialStore.setToken(credString, auth)
                         return@async auth
                     } finally {
-                        callbackServer.close() // Ensure cleanup
                         withContext(NonCancellable) {
+                            callbackServer.close() // Ensure cleanup
                             credKeyToMutexMap[credString]!!.withLock {
                                 credKeyToAuthJobMap.remove(credString)
                             }
