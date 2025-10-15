@@ -45,11 +45,12 @@ class PomeriumTunneler(
 ) {
 
     private val openTunnels = HashSet<URI>()
-    // Shared SelectorManager to prevent file descriptor exhaustion
+    // Shared SelectorManager within this instance to prevent file descriptor exhaustion
+    // Multiple tunnels within this instance will reuse the same SelectorManager
     private val selectorManager = SelectorManager(Dispatchers.IO)
     // Coroutine scope for managing all tunnel coroutines
     private val tunnelScope = CoroutineScope(Dispatchers.Default + CoroutineName("PomeriumTunneler"))
-    // Track active lifetimes to cancel tunnelScope when any lifetime is terminated
+    // Track active lifetimes for cleanup purposes
     private val activeLifetimes = mutableSetOf<Lifetime>()
 
     suspend fun startTunnel(
@@ -211,14 +212,12 @@ class PomeriumTunneler(
             }
         }
 
-        // Track the lifetime and cancel tunnelScope when it's terminated
+        // Track the lifetime for cleanup purposes
         activeLifetimes.add(lifetime)
         lifetime.onTermination {
             activeLifetimes.remove(lifetime)
-            if (activeLifetimes.isEmpty()) {
-                // Cancel the entire tunnelScope when no lifetimes are active
-                tunnelScope.cancel()
-            }
+            // Note: We don't cancel tunnelScope here as it would prevent new tunnels
+            // The tunnelScope should remain active for the lifetime of the PomeriumTunneler instance
         }
 
         return@withContext port
@@ -227,17 +226,19 @@ class PomeriumTunneler(
     fun isTunneling() = openTunnels.isNotEmpty()
 
     /**
-     * Closes the shared SelectorManager and releases all associated resources.
-     * Should be called when the PomeriumTunneler instance is no longer needed.
+     * Closes this PomeriumTunneler instance and releases all associated resources.
+     * This cancels all active tunnels and closes the SelectorManager.
+     * Safe to call multiple times.
      */
     fun close() {
-        LOG.debug("Closing PomeriumTunneler and releasing shared SelectorManager")
+        LOG.debug("Closing PomeriumTunneler instance and releasing all resources")
+        
         runBlocking {
             // Cancel all tunnel coroutines
             tunnelScope.cancel()
             // Wait a bit for coroutines to complete cancellation
             delay(100)
-            // Close the SelectorManager
+            // Close the SelectorManager to release all associated resources
             selectorManager.close()
         }
     }
