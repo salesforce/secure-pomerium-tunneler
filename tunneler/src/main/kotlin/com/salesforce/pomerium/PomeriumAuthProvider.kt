@@ -74,6 +74,9 @@ class PomeriumAuthProvider (
 
             val jobLifetime = Lifetime.Eternal.createNested()
 
+            // Create callback server to handle Pomerium authentication redirect
+            // This is necessary for the OAuth flow - Pomerium will redirect to this server
+            // with the JWT token, which we then capture and return
             val callbackServer = PomeriumAuthCallbackServer()
             val serverPort = callbackServer.start()
             LOG.info("Starting HTTP server on port $serverPort for pomerium auth token callback")
@@ -150,7 +153,8 @@ class PomeriumAuthProvider (
      * Returns the authentication service host used by the route
      */
     suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
-        // port 8080 is never used, but we have to pass some port to Pomerium
+        // Use a dummy port (8080) for host resolution - this port is never actually used
+        // The real callback server will use a different port when created
         return getAuthLink(route, pomeriumPort, 8080).host
     }
 
