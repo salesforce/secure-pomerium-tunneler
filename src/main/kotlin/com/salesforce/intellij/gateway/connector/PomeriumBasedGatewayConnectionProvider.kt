@@ -16,6 +16,7 @@ import com.jetbrains.gateway.thinClientLink.ThinClientHandle
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.salesforce.pomerium.PomeriumAuthProvider
 import com.salesforce.pomerium.PomeriumTunneler
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.TestOnly
 import java.net.URI
 
@@ -120,6 +121,8 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
 
    override fun dispose() {
        LOG.debug("Disposing PomeriumBasedGatewayConnectionProvider")
-       tunneler.close()
+       runBlocking {
+           tunneler.close()
+       }
    }
 }
