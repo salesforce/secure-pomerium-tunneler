@@ -40,6 +40,7 @@ class PomeriumAuthProvider (
     trustManager: X509TrustManager? = null
 ) : AuthProvider {
 
+    // Multiple routes may share the same pomerium instance. A cred key is the key tried to a pomerium instance
     private val credKeyToMutexMap = ConcurrentHashMap<CredentialKey, Mutex>()
     private val credKeyToAuthJobMap = HashMap<CredentialKey, Deferred<String>>()
     private val routeToCredKeyMap = HashMap<URI, CredentialKey>()
@@ -83,9 +84,16 @@ class PomeriumAuthProvider (
 
             LOG.info("Starting HTTP server on port $serverPort for pomerium auth token callback")
 
-            val authLink = getAuthLink(route, pomeriumPort, serverPort)
+            val authLink = try {
+                getAuthLink(route, pomeriumPort, serverPort)
+            } catch (e: Exception) {
+                LOG.warn("Failed to retrieve auth link from Pomerium")
+                callbackServer.close()
+                throw e
+            }
             val credString = getCredString(authLink)
             return@withContext credKeyToMutexMap.computeIfAbsent(credString) { Mutex() }.withLock {
+                routeToCredKeyMap[route] = credString
                 credentialStore.getToken(credString)?.let { auth ->
                     callbackServer.close()
                     return@withLock CompletableDeferred(auth)
@@ -99,7 +107,6 @@ class PomeriumAuthProvider (
                     }
                     return@withLock it
                 }
-                routeToCredKeyMap[route] = credString
                 val isNewRoute = existingRoutes.add(route)
                 val getToken = jobLifetime.async(Dispatchers.Default) {
                     try {
