@@ -159,7 +159,9 @@ class PomeriumTunneler(
                                     // Don't propagate
                                 }
 
-                                is UnresolvedAddressException -> delay(1.seconds)
+                                is UnresolvedAddressException -> {
+                                    LOG.debug("Unable to resolve route to host")
+                                }
                                 else -> LOG.error("Exception occurred during local tunneling", e)
                             }
                         } finally {
