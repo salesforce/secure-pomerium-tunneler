@@ -6,9 +6,8 @@
 
 ## [0.0.2]
 ### Fixed
-- Fixed file descriptor exhaustion issues during high concurrent usage
+- Fixed file descriptor leak
 - Improved resource cleanup and memory management
-- Enhanced tunnel connection reliability
 
 ## [0.0.1]
 ### Added

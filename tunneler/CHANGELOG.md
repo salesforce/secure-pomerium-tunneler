@@ -6,10 +6,8 @@
 
 ## [1.0.2]
 ### Fixed
-- Fixed file descriptor exhaustion in PomeriumTunneler with shared SelectorManager
+- Switch to using shared SelectorManager for better resource management
 - Fixed thread leaks with proper coroutine lifecycle management
-- Fixed Netty-based FD exhaustion in PomeriumAuthProvider with timeout cleanup
-- Improved resource cleanup to prevent "Too many open files" exceptions
 
 
 ## [1.0.1]
