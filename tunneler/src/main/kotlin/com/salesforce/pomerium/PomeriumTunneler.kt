@@ -1,6 +1,6 @@
 package com.salesforce.pomerium
 
-import com.jetbrains.rd.util.lifetime.Lifetime
+import com.jetbrains.rd.util.lifetime.LifetimeDefinition
 import com.jetbrains.rd.util.threading.coroutines.launch
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -11,12 +11,9 @@ import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.DisposableHandle
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -49,12 +46,10 @@ class PomeriumTunneler(
     // Shared SelectorManager within this instance to prevent file descriptor exhaustion
     // Multiple tunnels within this instance will reuse the same SelectorManager
     private val selectorManager = SelectorManager(Dispatchers.IO)
-    // Coroutine scope for managing all tunnel coroutines
-    private val tunnelScope = CoroutineScope(Dispatchers.Default + CoroutineName("PomeriumTunneler"))
 
     suspend fun startTunnel(
         route: URI,
-        lifetime: Lifetime,
+        lifetime: LifetimeDefinition,
         pomeriumHost: String = route.host,
         pomeriumPort: Int = 443
     ): Int = withContext(Dispatchers.Default) {
@@ -66,7 +61,7 @@ class PomeriumTunneler(
 
         LOG.info("Starting local tunnel on 127.0.0.1:$port and tunneling to $route")
 
-        val disposable = lifetime.launch(tunnelScope.coroutineContext) {
+        val disposable = lifetime.launch(Dispatchers.Default + CoroutineName("PomeriumTunneler")) {
             try {
                 while (isActive) {
                     val localSocket = try {
@@ -198,18 +193,17 @@ class PomeriumTunneler(
                 }
             } finally {
                 withContext(NonCancellable) {
-                    tunnelScope.coroutineContext[Job]?.cancel()
-                    // Wait a bit for coroutines to complete cancellation
-                    delay(100)
                     openTunnels.remove(route)
                     localServerSocket.close()
+                    lifetime.terminate()
                     // Don't close selectorManager here since it is shared
                 }
             }
         }.invokeOnCompletion { e ->
             // Remove the tunnel from openTunnels when the coroutine completes
-            tunnelScope.coroutineContext[Job]?.cancel()
             openTunnels.remove(route)
+            localServerSocket.close()
+            lifetime.terminate()
             if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
             }
@@ -218,10 +212,9 @@ class PomeriumTunneler(
         openTunnels[route] = disposable
 
         lifetime.onTermination {
-            disposable.dispose()
-            tunnelScope.coroutineContext[Job]?.cancel()
-            // Remove from tracking since the lifetime is terminated
             openTunnels.remove(route)
+            localServerSocket.close()
+            lifetime.terminate()
         }
 
         return@withContext port
@@ -234,16 +227,12 @@ class PomeriumTunneler(
      * This cancels all active tunnels and closes the SelectorManager.
      * Safe to call multiple times.
      */
-    suspend fun close() {
+    fun close() {
         LOG.debug("Closing PomeriumTunneler instance and releasing all resources")
 
         // Dispose all open tunnels
         openTunnels.values.forEach { disposable -> disposable.dispose() }
         openTunnels.clear()
-
-        // Cancel and wait for tunnelScope jobs to finish
-        tunnelScope.cancel()
-        tunnelScope.coroutineContext[Job]?.join()
 
         // Close the SelectorManager to release all associated resources
         selectorManager.close()

@@ -244,7 +244,7 @@ class PomeriumTunnelerTest {
 
                 val port = tunneler.startTunnel(
                     route = URI("http://test-route-$i.example.com"),
-                    lifetime = lifetimeDef.lifetime
+                    lifetime = lifetimeDef
                 )
                 ports.add(port)
             }
@@ -277,7 +277,7 @@ class PomeriumTunnelerTest {
                 lifetimes.add(lifetimeDef)
                 tunneler.startTunnel(
                     route = URI("http://test-route-$i.example.com"),
-                    lifetime = lifetimeDef.lifetime
+                    lifetime = lifetimeDef
                 )
             }
 
