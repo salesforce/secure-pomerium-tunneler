@@ -11,7 +11,11 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -22,7 +26,6 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * Service for getting authentication for pomerium controlled routes.
@@ -75,11 +78,9 @@ class PomeriumAuthProvider (
 
             val jobLifetime = Lifetime.Eternal.createNested()
 
-            // Create callback server to handle Pomerium authentication redirect
-            // This is necessary for the OAuth flow - Pomerium will redirect to this server
-            // with the JWT token, which we then capture and return
             val callbackServer = PomeriumAuthCallbackServer()
             val serverPort = callbackServer.start()
+
             LOG.info("Starting HTTP server on port $serverPort for pomerium auth token callback")
 
             val authLink = getAuthLink(route, pomeriumPort, serverPort)
@@ -108,10 +109,11 @@ class PomeriumAuthProvider (
                         return@async auth
                     } finally {
                         withContext(NonCancellable) {
-                            callbackServer.close() // Ensure cleanup
                             credKeyToMutexMap[credString]!!.withLock {
                                 credKeyToAuthJobMap.remove(credString)
+                                callbackServer.close()
                             }
+
                         }
                     }
                 }
@@ -156,8 +158,7 @@ class PomeriumAuthProvider (
      * Returns the authentication service host used by the route
      */
     suspend fun getAuthHost(route: URI, pomeriumPort: Int = 443): String {
-        // Use a dummy port (8080) for host resolution - this port is never actually used
-        // The real callback server will use a different port when created
+        // port 8080 is not ever used, but we have to pass some port to Pomerium
         return getAuthLink(route, pomeriumPort, 8080).host
     }
 
@@ -172,6 +173,7 @@ class PomeriumAuthProvider (
         return URI.create(link)
     }
 
+
     companion object {
         const val POMERIUM_LOGIN_ENDPOINT = "/.pomerium/api/v1/login"
         const val POMERIUM_LOGIN_REDIRECT_PARAM = "pomerium_redirect_uri"
@@ -182,15 +184,8 @@ class PomeriumAuthProvider (
         fun getCredString(authLink: URI): CredentialKey = "Pomerium instance ${authLink.host}"
     }
 
-    /**
-     * Callback server for each authentication request with added timeout cleanup to prevent FD exhaustion.
-     */
-    private class PomeriumAuthCallbackServer(
-        private val timeoutMinutes: Int = 10
-    ) : Closeable {
+    private class PomeriumAuthCallbackServer : Closeable {
         val tokenFuture = CompletableDeferred<String>()
-        private val cleanupJob: Job
-        private val serverScope = CoroutineScope(Dispatchers.Default + CoroutineName("PomeriumAuthCallbackServer"))
 
         val server = embeddedServer(Netty, 0) {
             routing {
@@ -211,30 +206,13 @@ class PomeriumAuthProvider (
             }
         }
 
-        init {
-            // Schedule automatic cleanup to prevent FD exhaustion
-            cleanupJob = serverScope.launch {
-
-                delay(timeoutMinutes.minutes) // 10 minutes
-                LOG.debug("Automatically closing PomeriumAuthCallbackServer due to timeout")
-                close()
-            }
-        }
-
         suspend fun start(): Int {
             server.start()
             return server.engine.resolvedConnectors().first().port
         }
 
         override fun close() {
-            cleanupJob.cancel()
-            serverScope.cancel()
-            try {
-                server.stop(1000, 2000) // Stop with 1s grace period, 2s timeout
-                LOG.debug("Stopped PomeriumAuthCallbackServer")
-            } catch (e: Exception) {
-                LOG.warn("Error stopping PomeriumAuthCallbackServer", e)
-            }
+            server.stop()
         }
 
         suspend fun getToken(): String {
@@ -245,5 +223,6 @@ class PomeriumAuthProvider (
             const val RESPONSE = "Authentication successful. You may now close this tab."
             const val RESPONSE_FAILURE = "Failed to capture Pomerium jwt."
         }
+
     }
 }
