@@ -28,7 +28,7 @@ class PomeriumBasedGatewayConnectorProviderTest {
                         PomeriumBasedGatewayConnectionProvider.PARAM_CONNECTION_KEY to "tcp://0.0.0.0:5990#jt=stub&p=IU&fp=stub&cb=231.9161.38&jb=17.0.7b829.16")
 
         var socketConnected = false
-        PomeriumBasedGatewayConnectionProvider { lifetime, initialLink, remoteIdentity ->
+        val provider = PomeriumBasedGatewayConnectionProvider { lifetime, initialLink, remoteIdentity ->
             Socket(initialLink.host, initialLink.port).use {
                 val echo = "echo"
                 it.getOutputStream().write(echo.encodeToByteArray())
@@ -53,10 +53,15 @@ class PomeriumBasedGatewayConnectorProviderTest {
                 }
 
             }
-        }.connect(fragments, ConnectionRequestor.Local)
+        }
+        
+        provider.connect(fragments, ConnectionRequestor.Local)
 
         Assertions.assertEquals(1, mockPomerium.requestCount)
         Assertions.assertTrue(socketConnected)
+
+        // Ensure proper cleanup
+        provider.dispose()
     }
 
     companion object {

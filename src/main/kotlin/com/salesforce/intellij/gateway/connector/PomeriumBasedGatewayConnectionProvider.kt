@@ -14,6 +14,7 @@ import com.jetbrains.gateway.api.GatewayConnectionProvider
 import com.jetbrains.gateway.thinClientLink.LinkedClientManager
 import com.jetbrains.gateway.thinClientLink.ThinClientHandle
 import com.jetbrains.rd.util.lifetime.Lifetime
+import com.jetbrains.rd.util.lifetime.LifetimeDefinition
 import com.salesforce.pomerium.PomeriumAuthProvider
 import com.salesforce.pomerium.PomeriumTunneler
 import org.jetbrains.annotations.TestOnly
@@ -78,11 +79,12 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
             val handle = createHandle(lifetime,
                     URI("tcp://127.0.0.1:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
                     pomeriumRoute.toString())
+            runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
             lifetime.onTermination {
                 val oldHandle = runningInstances.remove(pomeriumRouteString)
                 //Prevent removing anything but this handle
                 if (oldHandle != handle) {
-                    runningInstances[pomeriumRouteString] = handle
+                    runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
                 }
             }
             handle.clientClosed.advise(lifetime) {
@@ -92,7 +94,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
                 lifetime.terminate()
             }
             handle.onClientPresenceChanged.advise(lifetime) {
-                runningInstances[pomeriumRouteString] = handle
+                runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
             }
 
             return object : GatewayConnectionHandle(lifetime) {
@@ -114,11 +116,13 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         const val PARAM_ROUTE = "pomeriumRoute"
         const val PARAM_CONNECTION_KEY = "connectionKey"
         const val PARAM_POMERIUM_INSTANCE = "pomeriumInstance"
-
-        private val runningInstances = HashMap<String, ThinClientHandle>()
+        data class Instance (val clientHandle: ThinClientHandle, val lifetime: LifetimeDefinition )
+        private val runningInstances = HashMap<String, Instance>()
     }
 
-    override fun dispose() {
-        //Do nothing
-    }
+   override fun dispose() {
+       LOG.debug("Disposing PomeriumBasedGatewayConnectionProvider")
+       runningInstances.forEach { instance -> instance.value.lifetime.terminate()}
+       tunneler.close()
+   }
 }

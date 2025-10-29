@@ -18,8 +18,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import rawhttp.core.HttpVersion
 import rawhttp.core.RawHttp
@@ -42,6 +42,9 @@ class PomeriumTunneler(
 ) {
 
     private val openTunnels = HashSet<URI>()
+    // Shared SelectorManager within this instance to prevent file descriptor exhaustion
+    // Multiple tunnels within this instance will reuse the same SelectorManager
+    private val selectorManager = SelectorManager(Dispatchers.IO)
 
     suspend fun startTunnel(
         route: URI,
@@ -52,20 +55,19 @@ class PomeriumTunneler(
 
         authProvider.getAuth(route, lifetime).await() //Populate auth if required
 
-        val selectorManager = SelectorManager(Dispatchers.IO)
         val localServerSocket = aSocket(selectorManager).tcp().bind("127.0.0.1", 0)
         val port = localServerSocket.localAddress.toJavaAddress().port
         openTunnels.add(route)
 
         LOG.info("Starting local tunnel on 127.0.0.1:$port and tunneling to $route")
 
-        lifetime.launch(Dispatchers.Default) {
+        lifetime.launch(Dispatchers.Default + CoroutineName("PomeriumTunneler")) {
             try {
                 while (isActive) {
                     val localSocket = try {
                         localServerSocket.accept()
                     } catch (e: Exception) {
-                        LOG.info("Local tunneling socket failed to accept connection")
+                        LOG.info("Local tunneling socket failed to accept connection: ${e.message}")
                         continue
                     }
                     launch(Dispatchers.IO) {
@@ -159,7 +161,27 @@ class PomeriumTunneler(
                                     // Don't propagate
                                 }
 
-                                is UnresolvedAddressException -> delay(1.seconds)
+                                is UnresolvedAddressException -> {
+                                    LOG.debug("Unable to resolve route to host")
+                                }
+                                is IOException -> {
+                                    if (e.message?.contains("Too many open files") == true) {
+                                        LOG.error("File descriptor exhaustion detected")
+                                        // Add delay to prevent cascade failures
+                                        delay(5.seconds)
+                                    } else {
+                                        LOG.error("IO exception during local tunneling", e)
+                                    }
+                                }
+                                is IllegalStateException -> {
+                                    if (e.message?.contains("failed to create a child event loop") == true) {
+                                        LOG.error("Netty event loop creation failed - likely due to file descriptor exhaustion")
+                                        // Add longer delay for Netty issues
+                                        delay(10.seconds)
+                                    } else {
+                                        LOG.error("Illegal state exception during local tunneling", e)
+                                    }
+                                }
                                 else -> LOG.error("Exception occurred during local tunneling", e)
                             }
                         } finally {
@@ -171,24 +193,43 @@ class PomeriumTunneler(
                 }
             } finally {
                 withContext(NonCancellable) {
-                    openTunnels.remove(route)
-                    localServerSocket.close()
-                    selectorManager.close()
+                    cleanupTunnel(route, localServerSocket)
+                    // Don't close selectorManager here since it is shared
                 }
             }
         }.invokeOnCompletion { e ->
-            openTunnels.remove(route)
-            localServerSocket.close()
-            selectorManager.close()
+            cleanupTunnel(route, localServerSocket)
             if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
             }
+        }
+
+        lifetime.onTermination {
+            cleanupTunnel(route, localServerSocket)
         }
 
         return@withContext port
     }
 
     fun isTunneling() = openTunnels.isNotEmpty()
+
+    /**
+     * Closes this PomeriumTunneler instance and releases all associated resources.
+     * This cancels all active tunnels and closes the SelectorManager.
+     * Safe to call multiple times.
+     */
+    fun close() {
+        LOG.debug("Closing PomeriumTunneler instance and releasing all resources")
+
+        // Note: Individual tunnels are managed by their lifetimes which are passed in externally.
+        // When lifetimes terminate, they will automatically cancel their coroutines.
+        // Clear the tracking set and close the SelectorManager.
+        openTunnels.clear()
+
+        // Close the SelectorManager to release all associated resources
+        selectorManager.close()
+
+    }
 
     private suspend fun Socket.configure(useTls: Boolean, serverName: String, trustManager: TrustManager?): Socket {
         return if (useTls) {
@@ -214,6 +255,13 @@ class PomeriumTunneler(
                 else -> LOG.error("Exception while tunneling traffic", e)
             }
         }
+    }
+
+    // Removes route from currently open tunnel, and closes the local server socket
+    // To be used in events after the tunnel logic is executed
+    private fun cleanupTunnel(route: URI, localServerSocket: ServerSocket){
+        openTunnels.remove(route)
+        localServerSocket.close()
     }
 
     companion object {

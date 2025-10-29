@@ -225,4 +225,72 @@ class PomeriumTunnelerTest {
         Thread.sleep(100) //Need to wait for the cancellation to propagate
         Assertions.assertFalse(pomeriumTunneler.isTunneling())
     }
+
+    @Test
+    fun `test multiple tunnels can be created successfully`() = runTest {
+        val authProvider = mock<AuthProvider> {
+            onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred(mockPomerium.token)
+        }
+        val tunneler = PomeriumTunneler(authProvider, 100, false)
+
+        try {
+            val tunnelCount = 10
+            val lifetimes = mutableListOf<LifetimeDefinition>()
+            val ports = mutableListOf<Int>()
+
+            repeat(tunnelCount) { i ->
+                val lifetimeDef = lifetime.createNested()
+                lifetimes.add(lifetimeDef)
+
+                val port = tunneler.startTunnel(
+                    route = URI("http://test-route-$i.example.com"),
+                    lifetime = lifetimeDef
+                )
+                ports.add(port)
+            }
+
+            Assertions.assertEquals(tunnelCount, ports.size)
+            Assertions.assertTrue(ports.all { it > 0 })
+            Assertions.assertEquals(tunnelCount, ports.toSet().size)
+            Assertions.assertTrue(ports.all { it in 1024..65535 })
+            Assertions.assertTrue(tunneler.isTunneling())
+
+            lifetimes.forEach { it.terminate() }
+
+        } finally {
+            tunneler.close()
+        }
+    }
+
+    @Test
+    fun `test proper resource cleanup`() = runTest {
+        val authProvider = mock<AuthProvider> {
+            onBlocking { getAuth(any(), any()) } doReturn CompletableDeferred(mockPomerium.token)
+        }
+        val tunneler = PomeriumTunneler(authProvider, 100, false)
+
+        try {
+            val lifetimes = mutableListOf<LifetimeDefinition>()
+            repeat(5) { i ->
+                val lifetimeDef = lifetime.createNested()
+                lifetimes.add(lifetimeDef)
+                tunneler.startTunnel(
+                    route = URI("http://test-route-$i.example.com"),
+                    lifetime = lifetimeDef
+                )
+            }
+
+            Assertions.assertTrue(tunneler.isTunneling())
+
+            lifetimes.forEach { it.terminate() }
+
+            Assertions.assertFalse(tunneler.isTunneling())
+
+            tunneler.close()
+            Assertions.assertFalse(tunneler.isTunneling())
+
+        } finally {
+            tunneler.close()
+        }
+    }
 }

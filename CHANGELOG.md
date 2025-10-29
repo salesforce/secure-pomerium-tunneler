@@ -2,7 +2,12 @@
 
 # Secure Gateway Tunneler Plugin Changelog
 
+## [Unreleased]
 
+## [0.0.2]
+### Fixed
+- Fixed file descriptor leak
+- Improved resource cleanup and memory management
 
 ## [0.0.1]
 ### Added
@@ -10,7 +15,3 @@
 - Integration with Pomerium for secure tunneling
 - Gateway connection provider for IntelliJ
 - Support for Pomerium authentication flows
-
-## [Unreleased]
-### Added
-- Initial scaffold created from [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template)
