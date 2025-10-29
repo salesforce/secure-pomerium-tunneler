@@ -193,16 +193,13 @@ class PomeriumTunneler(
                 }
             } finally {
                 withContext(NonCancellable) {
-                    openTunnels.remove(route)
-                    localServerSocket.close()
+                    cleanupTunnel(route, localServerSocket)
                     lifetime.terminate()
                     // Don't close selectorManager here since it is shared
                 }
             }
         }.invokeOnCompletion { e ->
-            // Remove the tunnel from openTunnels when the coroutine completes
-            openTunnels.remove(route)
-            localServerSocket.close()
+            cleanupTunnel(route, localServerSocket)
             lifetime.terminate()
             if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
@@ -212,8 +209,7 @@ class PomeriumTunneler(
         openTunnels[route] = disposable
 
         lifetime.onTermination {
-            openTunnels.remove(route)
-            localServerSocket.close()
+            cleanupTunnel(route, localServerSocket)
             lifetime.terminate()
         }
 
@@ -263,6 +259,13 @@ class PomeriumTunneler(
                 else -> LOG.error("Exception while tunneling traffic", e)
             }
         }
+    }
+
+    // Removes route from currently open tunnel, and closes the local server socket
+    // To be used in events after the tunnel logic is executed
+    private fun cleanupTunnel(route: URI, localServerSocket: ServerSocket){
+        openTunnels.remove(route)
+        localServerSocket.close()
     }
 
     companion object {
