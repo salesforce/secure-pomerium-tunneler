@@ -122,7 +122,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
 
    override fun dispose() {
        LOG.debug("Disposing PomeriumBasedGatewayConnectionProvider")
-       tunneler.close()
        runningInstances.forEach { instance -> instance.value.lifetime.terminate()}
+       tunneler.close()
    }
 }
