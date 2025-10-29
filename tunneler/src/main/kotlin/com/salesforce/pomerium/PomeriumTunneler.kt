@@ -1,6 +1,6 @@
 package com.salesforce.pomerium
 
-import com.jetbrains.rd.util.lifetime.LifetimeDefinition
+import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.threading.coroutines.launch
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -48,7 +48,7 @@ class PomeriumTunneler(
 
     suspend fun startTunnel(
         route: URI,
-        lifetime: LifetimeDefinition,
+        lifetime: Lifetime,
         pomeriumHost: String = route.host,
         pomeriumPort: Int = 443
     ): Int = withContext(Dispatchers.Default) {
@@ -194,13 +194,11 @@ class PomeriumTunneler(
             } finally {
                 withContext(NonCancellable) {
                     cleanupTunnel(route, localServerSocket)
-                    lifetime.terminate()
                     // Don't close selectorManager here since it is shared
                 }
             }
         }.invokeOnCompletion { e ->
             cleanupTunnel(route, localServerSocket)
-            lifetime.terminate()
             if (e !is CancellationException) {
                 LOG.error("Unhandled exception in tunneling coroutine", e)
             }
