@@ -256,7 +256,6 @@ class PomeriumTunnelerTest {
             Assertions.assertTrue(tunneler.isTunneling())
 
             lifetimes.forEach { it.terminate() }
-            delay(100)
 
         } finally {
             tunneler.close()
@@ -284,7 +283,6 @@ class PomeriumTunnelerTest {
             Assertions.assertTrue(tunneler.isTunneling())
 
             lifetimes.forEach { it.terminate() }
-            delay(100)
 
             Assertions.assertFalse(tunneler.isTunneling())
 
