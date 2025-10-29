@@ -210,7 +210,6 @@ class PomeriumTunneler(
 
         lifetime.onTermination {
             cleanupTunnel(route, localServerSocket)
-            lifetime.terminate()
         }
 
         return@withContext port
