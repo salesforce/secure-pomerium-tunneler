@@ -12,7 +12,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.delay
@@ -42,7 +41,7 @@ class PomeriumTunneler(
     private val trustManager: TrustManager? = null
 ) {
 
-    private val openTunnels = mutableMapOf<URI, DisposableHandle>()
+    private val openTunnels = HashSet<URI>()
     // Shared SelectorManager within this instance to prevent file descriptor exhaustion
     // Multiple tunnels within this instance will reuse the same SelectorManager
     private val selectorManager = SelectorManager(Dispatchers.IO)
@@ -58,10 +57,11 @@ class PomeriumTunneler(
 
         val localServerSocket = aSocket(selectorManager).tcp().bind("127.0.0.1", 0)
         val port = localServerSocket.localAddress.toJavaAddress().port
+        openTunnels.add(route)
 
         LOG.info("Starting local tunnel on 127.0.0.1:$port and tunneling to $route")
 
-        val disposable = lifetime.launch(Dispatchers.Default + CoroutineName("PomeriumTunneler")) {
+        lifetime.launch(Dispatchers.Default + CoroutineName("PomeriumTunneler")) {
             try {
                 while (isActive) {
                     val localSocket = try {
@@ -206,8 +206,6 @@ class PomeriumTunneler(
             }
         }
 
-        openTunnels[route] = disposable
-
         lifetime.onTermination {
             cleanupTunnel(route, localServerSocket)
         }
@@ -225,8 +223,9 @@ class PomeriumTunneler(
     fun close() {
         LOG.debug("Closing PomeriumTunneler instance and releasing all resources")
 
-        // Dispose all open tunnels
-        openTunnels.values.forEach { disposable -> disposable.dispose() }
+        // Note: Individual tunnels are managed by their lifetimes which are passed in externally.
+        // When lifetimes terminate, they will automatically cancel their coroutines.
+        // Clear the tracking set and close the SelectorManager.
         openTunnels.clear()
 
         // Close the SelectorManager to release all associated resources
