@@ -211,6 +211,9 @@ class PomeriumAuthProvider (
                         call.respondText(authResponseHandler.authenticationFailureMessage())
                     }
                 }
+                route("/static") {
+                    authResponseHandler.configureStaticContent(this)
+                }
                 route("*") {
                     handle {
                         call.response.status(HttpStatusCode.NotFound)
