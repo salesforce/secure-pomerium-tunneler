@@ -1,10 +1,22 @@
 package com.salesforce.pomerium
 
-object DefaultAuthRedirectResponseHandler: AuthenticationRedirectResponseHandler {
-    const val RESPONSE = "Authentication successful. You may now close this tab."
-    const val RESPONSE_FAILURE = "Failed to capture Pomerium jwt."
+import io.ktor.http.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 
-    override fun authenticationSuccessMessage() = RESPONSE
+class DefaultAuthRedirectResponseHandler: AuthenticationRedirectResponseHandler {
+    override suspend fun handleAuthenticationSuccess(call: RoutingCall) {
+        call.response.status(HttpStatusCode.OK)
+        call.respondText(RESPONSE)
+    }
 
-    override fun authenticationFailureMessage() = RESPONSE_FAILURE
+    override suspend fun handleAuthenticationFailure(call: RoutingCall) {
+        call.response.status(HttpStatusCode.BadRequest)
+        call.respondText(RESPONSE_FAILURE)
+    }
+
+    companion object {
+        const val RESPONSE = "Authentication successful. You may now close this tab."
+        const val RESPONSE_FAILURE = "Failed to capture Pomerium jwt."
+    }
 }

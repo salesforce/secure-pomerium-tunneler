@@ -236,14 +236,8 @@ class PomeriumAuthProviderTest {
         server.start()
 
         val credStore = InMemoryCredStore()
-        val testSuccessMessage = "request was successful"
-        val testFailureMessage = "request was not successful"
         val authService = PomeriumAuthProvider(credStore, NoOpAuthLinkHandler, server.port,
-            object: AuthenticationRedirectResponseHandler {
-                override fun authenticationSuccessMessage() = testSuccessMessage
-
-                override fun authenticationFailureMessage() = testFailureMessage
-            })
+            DefaultAuthRedirectResponseHandler())
 
         val route = URI("http://localhost:${server.port}")
         val authJob = authService.getAuth(route, lifetime)
@@ -262,7 +256,7 @@ class PomeriumAuthProviderTest {
 
         OkHttpClient().newCall(badRequest).execute().use {
             Assertions.assertFalse(it.isSuccessful)
-            Assertions.assertEquals(testFailureMessage, it.body!!.string())
+            Assertions.assertEquals(DefaultAuthRedirectResponseHandler.RESPONSE_FAILURE, it.body!!.string())
             Assertions.assertEquals(400, it.code)
         }
 
@@ -274,7 +268,7 @@ class PomeriumAuthProviderTest {
         OkHttpClient().newCall(jwtRequest).execute().use {
             Assertions.assertTrue(it.isSuccessful)
             Assertions.assertEquals(200, it.code)
-            Assertions.assertEquals(testSuccessMessage, it.body!!.string())
+            Assertions.assertEquals(DefaultAuthRedirectResponseHandler.RESPONSE, it.body!!.string())
         }
     }
 }

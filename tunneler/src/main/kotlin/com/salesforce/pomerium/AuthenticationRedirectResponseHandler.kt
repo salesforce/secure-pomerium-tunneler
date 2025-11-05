@@ -1,14 +1,13 @@
 package com.salesforce.pomerium
 
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.routing.*
 
 interface AuthenticationRedirectResponseHandler {
 
-    fun authenticationSuccessMessage(): String
+    suspend fun handleAuthenticationSuccess(call: RoutingCall)
 
-    fun authenticationFailureMessage(): String
+    suspend fun handleAuthenticationFailure(call: RoutingCall)
 
     fun configureStaticContent(staticRoute: Route) {
         staticRoute.handle {

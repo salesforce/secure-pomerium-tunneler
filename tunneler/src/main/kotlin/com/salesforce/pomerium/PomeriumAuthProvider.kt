@@ -7,8 +7,7 @@ import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.*
+import io.ktor.http.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
@@ -38,7 +37,7 @@ class PomeriumAuthProvider (
     private val credentialStore: CredentialStore,
     private val linkHandler: AuthLinkHandler = OpenBrowserAuthLinkHandler(),
     private val pomeriumPort: Int = 443,
-    private val authResponseHandler: AuthenticationRedirectResponseHandler = DefaultAuthRedirectResponseHandler,
+    private val authResponseHandler: AuthenticationRedirectResponseHandler = DefaultAuthRedirectResponseHandler(),
     sslSocketFactory: SSLSocketFactory? = null,
     trustManager: X509TrustManager? = null
 ) : AuthProvider {
@@ -204,11 +203,10 @@ class PomeriumAuthProvider (
                 get("/") { ->
                     val jwtQuery = call.parameters[POMERIUM_JWT_QUERY_PARAM]
                     if (jwtQuery != null) {
-                        call.respondText(authResponseHandler.authenticationSuccessMessage())
+                        authResponseHandler.handleAuthenticationSuccess(call)
                         tokenFuture.complete(jwtQuery)
                     } else {
-                        call.response.status(HttpStatusCode.BadRequest)
-                        call.respondText(authResponseHandler.authenticationFailureMessage())
+                        authResponseHandler.handleAuthenticationFailure(call)
                     }
                 }
                 route("/static") {
