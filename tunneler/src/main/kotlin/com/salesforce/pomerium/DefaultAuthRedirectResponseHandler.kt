@@ -1,8 +1,8 @@
 package com.salesforce.pomerium
 
-import io.ktor.http.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.RoutingCall
 
 class DefaultAuthRedirectResponseHandler: AuthenticationRedirectResponseHandler {
     override suspend fun handleAuthenticationSuccess(call: RoutingCall) {
