@@ -227,4 +227,54 @@ class PomeriumAuthProviderTest {
 
         Assertions.assertTrue(job.isCancelled)
     }
+
+    @Test
+    fun `test custom auth redirect response`() = runTest {
+        val testAuthEndpoint = "http://example.com"
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody(testAuthEndpoint))
+        server.start()
+
+        val credStore = InMemoryCredStore()
+        val testSuccessMessage = "request was successful"
+        val testFailureMessage = "request was not successful"
+        val authService = PomeriumAuthProvider(credStore, NoOpAuthLinkHandler, server.port,
+            object: AuthenticationRedirectResponseHandler {
+                override fun authenticationSuccessMessage() = testSuccessMessage
+
+                override fun authenticationFailureMessage() = testFailureMessage
+            })
+
+        val route = URI("http://localhost:${server.port}")
+        val authJob = authService.getAuth(route, lifetime)
+        authJob.start()
+
+        val request = server.takeRequest()
+        val query = request.requestUrl!!.toUrl().query
+        val parts = query.split("=")
+        Assertions.assertEquals(PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM, parts[0])
+        val localServer = URLDecoder.decode(parts[1], Charset.defaultCharset())
+
+        val badRequest = Request.Builder()
+            .get()
+            .url(localServer)
+            .build()
+
+        OkHttpClient().newCall(badRequest).execute().use {
+            Assertions.assertFalse(it.isSuccessful)
+            Assertions.assertEquals(testFailureMessage, it.body!!.string())
+            Assertions.assertEquals(400, it.code)
+        }
+
+        val testJwt = "someRansomTestString"
+        val jwtRequest = Request.Builder()
+            .get()
+            .url(localServer + "?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=${testJwt}")
+            .build()
+        OkHttpClient().newCall(jwtRequest).execute().use {
+            Assertions.assertTrue(it.isSuccessful)
+            Assertions.assertEquals(200, it.code)
+            Assertions.assertEquals(testSuccessMessage, it.body!!.string())
+        }
+    }
 }
