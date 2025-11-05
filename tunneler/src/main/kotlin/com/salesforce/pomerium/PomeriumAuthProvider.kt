@@ -200,7 +200,7 @@ class PomeriumAuthProvider (
 
         val server = embeddedServer(Netty, 0) {
             routing {
-                get("/") { ->
+                get("/") {
                     val jwtQuery = call.parameters[POMERIUM_JWT_QUERY_PARAM]
                     if (jwtQuery != null) {
                         authResponseHandler.handleAuthenticationSuccess(call)
