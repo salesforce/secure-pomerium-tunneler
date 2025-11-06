@@ -18,6 +18,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,6 +30,7 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Service for getting authentication for pomerium controlled routes.
@@ -122,6 +124,8 @@ class PomeriumAuthProvider (
                         withContext(NonCancellable) {
                             credKeyToMutexMap[credString]!!.withLock {
                                 credKeyToAuthJobMap.remove(credString)
+                                // Artificial delay to allow any static content to be served which may be needed by the redirect page
+                                delay(5.seconds)
                                 callbackServer.close()
                             }
 

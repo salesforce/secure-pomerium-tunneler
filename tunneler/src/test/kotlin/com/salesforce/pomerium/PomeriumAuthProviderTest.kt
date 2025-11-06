@@ -2,6 +2,11 @@ package com.salesforce.pomerium
 
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.lifetime.LifetimeDefinition
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.RoutingCall
+import io.ktor.server.routing.get
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -229,7 +234,7 @@ class PomeriumAuthProviderTest {
     }
 
     @Test
-    fun `test custom auth redirect response`() = runTest {
+    fun `test default auth redirect response`() = runTest {
         val testAuthEndpoint = "http://example.com"
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody(testAuthEndpoint))
@@ -269,6 +274,81 @@ class PomeriumAuthProviderTest {
             Assertions.assertTrue(it.isSuccessful)
             Assertions.assertEquals(200, it.code)
             Assertions.assertEquals(DefaultAuthRedirectResponseHandler.RESPONSE, it.body!!.string())
+        }
+    }
+
+
+    @Test
+    fun `test custom auth redirect response`() = runTest {
+        val testAuthEndpoint = "http://example.com"
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody(testAuthEndpoint))
+        server.start()
+
+        val credStore = InMemoryCredStore()
+        val staticText = "static content"
+        val successMessage = "success"
+        val failureMessage = "failure"
+        val authService = PomeriumAuthProvider(credStore, NoOpAuthLinkHandler, server.port,
+            object : AuthenticationRedirectResponseHandler {
+                override suspend fun handleAuthenticationSuccess(call: RoutingCall) {
+                    call.response.status(HttpStatusCode.OK)
+                    call.respondText(successMessage)
+                }
+
+                override suspend fun handleAuthenticationFailure(call: RoutingCall) {
+                    call.response.status(HttpStatusCode.BadRequest)
+                    call.respondText(failureMessage)
+                }
+
+                override fun configureStaticContent(staticRoute: Route) {
+                    staticRoute.get("test.txt") {
+                        call.response.status(HttpStatusCode.OK)
+                        call.respondText(staticText)
+                    }
+                }
+            })
+
+        val route = URI("http://localhost:${server.port}")
+        val authJob = authService.getAuth(route, lifetime)
+        authJob.start()
+
+        val request = server.takeRequest()
+        val query = request.requestUrl!!.toUrl().query
+        val parts = query.split("=")
+        Assertions.assertEquals(PomeriumAuthProvider.POMERIUM_LOGIN_REDIRECT_PARAM, parts[0])
+        val localServer = URLDecoder.decode(parts[1], Charset.defaultCharset())
+
+        val badRequest = Request.Builder()
+            .get()
+            .url(localServer)
+            .build()
+
+        OkHttpClient().newCall(badRequest).execute().use {
+            Assertions.assertFalse(it.isSuccessful)
+            Assertions.assertEquals(failureMessage, it.body!!.string())
+            Assertions.assertEquals(400, it.code)
+        }
+
+        val testJwt = "someRansomTestString"
+        val jwtRequest = Request.Builder()
+            .get()
+            .url(localServer + "?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=${testJwt}")
+            .build()
+        OkHttpClient().newCall(jwtRequest).execute().use {
+            Assertions.assertTrue(it.isSuccessful)
+            Assertions.assertEquals(200, it.code)
+            Assertions.assertEquals(successMessage, it.body!!.string())
+        }
+
+        val staticContent = Request.Builder()
+            .get()
+            .url("$localServer/static/test.txt")
+            .build()
+        OkHttpClient().newCall(staticContent).execute().use {
+            Assertions.assertTrue(it.isSuccessful)
+            Assertions.assertEquals(200, it.code)
+            Assertions.assertEquals(staticText, it.body!!.string())
         }
     }
 }
