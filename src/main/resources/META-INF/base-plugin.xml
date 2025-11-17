@@ -4,12 +4,12 @@
         <gatewayConnector implementation="com.salesforce.intellij.gateway.connector.GatewayConnectLinkConnector" />
     </extensions>
 
-    <extensions defaultExtensionNs="com.salesforce.gateway">
+    <extensions defaultExtensionNs="com.salesforce.intellij.sgt">
         <authRedirectResponseHandler implementation="com.salesforce.pomerium.DefaultAuthRedirectResponseHandler" order="last"/>
     </extensions>
 
     <extensionPoints>
-        <extensionPoint qualifiedName="com.salesforce.gateway.authRedirectResponseHandler"
+        <extensionPoint qualifiedName="com.salesforce.intellij.sgt.authRedirectResponseHandler"
                         interface="com.salesforce.pomerium.AuthenticationRedirectResponseHandler"
                         dynamic="true"/>
     </extensionPoints>

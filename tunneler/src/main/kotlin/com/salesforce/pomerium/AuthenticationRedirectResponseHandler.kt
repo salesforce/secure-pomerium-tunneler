@@ -1,7 +1,5 @@
 package com.salesforce.pomerium
 
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingCall
 
 /**
@@ -21,13 +19,4 @@ interface AuthenticationRedirectResponseHandler {
      * Its recommended the implementor set a valid http status code (400 for example)
      */
     suspend fun handleAuthenticationFailure(call: RoutingCall)
-
-    /**
-     * Configure the server to serve content under /static, can be used to serve additional content needed by the success/failure page
-     */
-    fun configureStaticContent(staticRoute: Route) {
-        staticRoute.handle {
-            call.response.status(HttpStatusCode.NotFound)
-        }
-    }
 }
