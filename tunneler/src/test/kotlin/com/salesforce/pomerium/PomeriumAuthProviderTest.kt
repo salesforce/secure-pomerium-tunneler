@@ -260,12 +260,12 @@ class PomeriumAuthProviderTest {
             Assertions.assertEquals(400, it.code)
         }
 
-        val testJwt = "someRansomTestString"
-        val jwtRequest = Request.Builder()
+        val testJwt = "someRandomTestString"
+        val goodRequest = Request.Builder()
             .get()
             .url(localServer + "?${PomeriumAuthProvider.POMERIUM_JWT_QUERY_PARAM}=${testJwt}")
             .build()
-        OkHttpClient().newCall(jwtRequest).execute().use {
+        OkHttpClient().newCall(goodRequest).execute().use {
             Assertions.assertTrue(it.isSuccessful)
             Assertions.assertEquals(200, it.code)
             Assertions.assertEquals(DefaultAuthRedirectResponseHandler.RESPONSE, it.body!!.string())

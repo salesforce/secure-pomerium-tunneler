@@ -10,13 +10,13 @@ interface AuthenticationRedirectResponseHandler {
 
     /**
      * Handle a successful authentication redirect where the auth token has been captured
-     * Its recommended the implementor set a valid http status code (200 for example)
+     * It's recommended that the implementor sets a valid http status code (200 for example)
      */
     suspend fun handleAuthenticationSuccess(call: RoutingCall)
 
     /**
      * Handle a failure where the redirect is made, but the token could not be captured (wrong or missing parameter)
-     * Its recommended the implementor set a valid http status code (400 for example)
+     * It's recommended that the implementor sets a valid http status code (400 for example)
      */
     suspend fun handleAuthenticationFailure(call: RoutingCall)
 }
