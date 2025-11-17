@@ -3,14 +3,17 @@ package com.salesforce.pomerium
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.threading.coroutines.async
 import com.jetbrains.rd.util.threading.coroutines.synchronizeWith
-import io.ktor.client.*
-import io.ktor.client.engine.okhttp.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +39,7 @@ class PomeriumAuthProvider (
     private val credentialStore: CredentialStore,
     private val linkHandler: AuthLinkHandler = OpenBrowserAuthLinkHandler(),
     private val pomeriumPort: Int = 443,
+    private val authResponseHandler: AuthenticationRedirectResponseHandler = DefaultAuthRedirectResponseHandler(),
     sslSocketFactory: SSLSocketFactory? = null,
     trustManager: X509TrustManager? = null
 ) : AuthProvider {
@@ -79,7 +83,7 @@ class PomeriumAuthProvider (
 
             val jobLifetime = Lifetime.Eternal.createNested()
 
-            val callbackServer = PomeriumAuthCallbackServer()
+            val callbackServer = PomeriumAuthCallbackServer(authResponseHandler)
             val serverPort = callbackServer.start()
 
             LOG.info("Starting HTTP server on port $serverPort for pomerium auth token callback")
@@ -191,7 +195,9 @@ class PomeriumAuthProvider (
         fun getCredString(authLink: URI): CredentialKey = "Pomerium instance ${authLink.host}"
     }
 
-    private class PomeriumAuthCallbackServer : Closeable {
+    private class PomeriumAuthCallbackServer(
+        private val authResponseHandler: AuthenticationRedirectResponseHandler
+    ) : Closeable {
         val tokenFuture = CompletableDeferred<String>()
 
         val server = embeddedServer(Netty, 0) {
@@ -199,15 +205,16 @@ class PomeriumAuthProvider (
                 get("/") {
                     val jwtQuery = call.parameters[POMERIUM_JWT_QUERY_PARAM]
                     if (jwtQuery != null) {
-                        call.respondText(RESPONSE)
+                        authResponseHandler.handleAuthenticationSuccess(call)
                         tokenFuture.complete(jwtQuery)
                     } else {
-                        call.respondText(RESPONSE_FAILURE)
+                        authResponseHandler.handleAuthenticationFailure(call)
                     }
                 }
                 route("*") {
                     handle {
-                        call.respondText(RESPONSE_FAILURE)
+                        call.response.status(HttpStatusCode.NotFound)
+                        call.respondText(NOT_FOUND)
                     }
                 }
             }
@@ -227,8 +234,7 @@ class PomeriumAuthProvider (
         }
 
         companion object {
-            const val RESPONSE = "Authentication successful. You may now close this tab."
-            const val RESPONSE_FAILURE = "Failed to capture Pomerium jwt."
+            const val NOT_FOUND = "Not found"
         }
 
     }

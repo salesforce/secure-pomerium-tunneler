@@ -26,8 +26,9 @@ private val pomeriumPort by lazy {
 }
 val PomeriumAuthService by lazy {
     PomeriumAuthProvider(GatewayCredentialStore, GatewayAuthLinkHandler, pomeriumPort,
-            CertificateManager.getInstance().sslContext.socketFactory,
-            CertificateManager.getInstance().trustManager
+            authResponseHandler = AuthRedirectResponseHandlerEp.getHandler(),
+            sslSocketFactory = CertificateManager.getInstance().sslContext.socketFactory,
+            trustManager = CertificateManager.getInstance().trustManager
     )
 }
 class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal constructor(
