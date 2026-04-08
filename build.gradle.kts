@@ -68,8 +68,8 @@ kotlin {
 }
 
 intellijPlatform {
-    version = properties("pluginVersion")
     pluginConfiguration {
+        version = properties("pluginVersion")
         description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
                     val start = "<!-- Plugin description -->"
                     val end = "<!-- Plugin description end -->"
