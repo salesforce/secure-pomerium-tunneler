@@ -109,7 +109,8 @@ intellijPlatform {
 // Workaround: Gateway 2026.1 product-info.json has productModuleV2 entries without classPath field.
 // This causes intellij-plugin-structure to fail with NullPointerException during IDE validation.
 // Tracked: https://youtrack.jetbrains.com/issue/IJPL-242405
-// ToDo: Remove this workaround once fixed in Gateway 2026.1.1+ or intellij-plugin-verifier
+// Fixed upstream: https://github.com/JetBrains/intellij-plugin-verifier/pull/1470
+// Remove this workaround once IntelliJ Platform Gradle Plugin bundles the fixed version
 configurations.named("intellijPlatformDependency") {
     incoming.afterResolve {
         resolutionResult.allComponents {

@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.0.3]
+### Changed
+- Upgraded IntelliJ Platform to 2026.1 and updated dependencies
+
+### Fixed
+- Added compatibility fixes for Gateway 2026.1
+
 ## [0.0.2]
 ### Fixed
 - Fixed file descriptor leak
