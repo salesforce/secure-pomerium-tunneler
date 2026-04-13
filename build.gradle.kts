@@ -35,6 +35,13 @@ repositories {
     }
 }
 
+// Exclude standard kotlinx-coroutines-core from test configurations to avoid
+// conflicting with IntelliJ platform's patched coroutines (1.10.2-intellij-1)
+configurations.matching { it.name.startsWith("test") }.configureEach {
+    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
+    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
+}
+
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
     intellijPlatform {
@@ -68,8 +75,8 @@ kotlin {
 }
 
 intellijPlatform {
-    version = properties("pluginVersion")
     pluginConfiguration {
+        version = properties("pluginVersion")
         description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
                     val start = "<!-- Plugin description -->"
                     val end = "<!-- Plugin description end -->"
@@ -99,6 +106,37 @@ intellijPlatform {
     }
 }
 
+// Workaround: Gateway 2026.1 product-info.json has productModuleV2 entries without classPath field.
+// This causes intellij-plugin-structure to fail with NullPointerException during IDE validation.
+// Tracked: https://youtrack.jetbrains.com/issue/IJPL-242405
+// Fixed upstream: https://github.com/JetBrains/intellij-plugin-verifier/pull/1470
+// Remove this workaround once IntelliJ Platform Gradle Plugin bundles the fixed version
+configurations.named("intellijPlatformDependency") {
+    incoming.afterResolve {
+        resolutionResult.allComponents {
+            val platformPath = moduleVersion?.let {
+                configurations.getByName("intellijPlatformDependency").resolve().firstOrNull()
+            }
+            if (platformPath != null) {
+                listOf(
+                    File(platformPath, "product-info.json"),
+                    File(platformPath, "Resources/product-info.json")
+                ).filter { it.exists() }.forEach { productInfoFile ->
+                    val content = productInfoFile.readText()
+                    if (content.contains(Regex("\"kind\"\\s*:\\s*\"productModuleV2\"\\s*\\}"))) {
+                        productInfoFile.writeText(
+                            content.replace(
+                                Regex("(\"kind\"\\s*:\\s*\"productModuleV2\")\\s*\\}"),
+                                "$1, \"classPath\": []}"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
     groups.empty()
@@ -117,6 +155,8 @@ tasks {
 
     test {
         useJUnitPlatform()
+        // Byte Buddy (used by Mockito) doesn't officially support Java 25 yet
+        jvmArgs("-Dnet.bytebuddy.experimental=true")
     }
 
     signPlugin {
