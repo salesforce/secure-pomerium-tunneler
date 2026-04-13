@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "assignees": ["team:secure-pomerium-tunneler-admins"],
+  "packageRules": [
+    {
+      "matchManagers": ["gradle", "gradle-wrapper"],
+      "enabled": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "enabled": true
+    }
+  ],
+  "schedule": ["every weekend"]
+}
