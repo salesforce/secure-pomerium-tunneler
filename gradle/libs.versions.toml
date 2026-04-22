@@ -1,7 +1,7 @@
 [versions]
 # libraries
-junit = "5.12.2"
-junit-platform-launcher = "1.12.2"
+junit = "5.14.3"
+junit-platform-launcher = "1.14.3"
 coroutine = "1.10.2"
 mockito-kotlin = "5.4.0"
 rdFramework = "2026.1.3"
