@@ -14,7 +14,7 @@ mockWebServer = "5.3.2"
 # plugins
 kotlin = "2.3.20"
 changelog = "2.5.0"
-gradleIntelliJPlugin = "2.14.0"
+gradleIntelliJPlugin = "2.15.0"
 kover = "0.9.8"
 
 [libraries]
