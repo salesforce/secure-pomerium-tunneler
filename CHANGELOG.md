@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.0.4]
+### Changed
+- Upgraded IntelliJ Platform Gradle Plugin to 2.16.0
+
+### Fixed
+- Removed workaround for product-info.json productModuleV2 null classPath (fixed in intellij-plugin-structure 3.325, bundled in plugin 2.16.0)
+
 ## [0.0.3]
 ### Changed
 - Upgraded IntelliJ Platform to 2026.1 and updated dependencies
