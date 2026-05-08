@@ -3,6 +3,8 @@
 # Secure Gateway Tunneler Plugin Changelog
 
 ## [Unreleased]
+
+## [0.0.4]
 ### Changed
 - Upgraded IntelliJ Platform Gradle Plugin to 2.16.0
 
