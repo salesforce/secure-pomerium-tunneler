@@ -1,4 +1,5 @@
 # Comment line immediately above ownership line is reserved for related other information. Please be careful while editing.
 #ECCN:Open Source
+#GUSINFO:Workspace Engineering,Salesforce Workspaces
 
 *  @salesforce/secure-pomerium-tunneler-admins
