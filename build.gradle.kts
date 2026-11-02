@@ -46,6 +46,7 @@ configurations.matching { it.name.startsWith("test") }.configureEach {
 dependencies {
     intellijPlatform {
         gateway(properties("platformVersion"))
+        bundledModule("intellij.gateway.core")
         testFramework(TestFrameworkType.Platform)
         testFramework(TestFrameworkType.JUnit5)
         testFramework(TestFrameworkType.Bundled)
