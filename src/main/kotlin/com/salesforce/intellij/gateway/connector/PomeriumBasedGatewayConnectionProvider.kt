@@ -78,7 +78,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
             )
 
             val handle = createHandle(lifetime,
-                    URI("tcp://127.0.0.1:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
+                    localClientLink(port, connectionKey),
                     pomeriumRoute.toString())
             runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
             lifetime.onTermination {
@@ -118,6 +118,18 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         const val PARAM_CONNECTION_KEY = "connectionKey"
         const val PARAM_POMERIUM_INSTANCE = "pomeriumInstance"
         data class Instance (val clientHandle: ThinClientHandle, val lifetime: LifetimeDefinition )
+
+        /**
+         * Makes the join link for the client from the join link of the backend ([connectionKey]).
+         * The link points to the local tunnel [port] and keeps the scheme and the fragment of [connectionKey].
+         * The scheme `tcp` makes the client check the join token and the host fingerprint.
+         * The scheme `tcp-direct` makes the client skip both checks.
+         */
+        internal fun localClientLink(port: Int, connectionKey: String): URI {
+            val connectionKeyUri = URI(connectionKey)
+            val scheme = connectionKeyUri.scheme ?: "tcp"
+            return URI("$scheme://127.0.0.1:${port}#${connectionKeyUri.rawFragment}")
+        }
         private val runningInstances = HashMap<String, Instance>()
     }
 
