@@ -78,7 +78,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
             )
 
             val handle = createHandle(lifetime,
-                    URI("tcp://127.0.0.1:${port}${connectionKey.substring(connectionKey.indexOf("#"))}"),
+                    clientLink(port, connectionKey),
                     pomeriumRoute.toString())
             runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
             lifetime.onTermination {
@@ -118,6 +118,12 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         const val PARAM_CONNECTION_KEY = "connectionKey"
         const val PARAM_POMERIUM_INSTANCE = "pomeriumInstance"
         data class Instance (val clientHandle: ThinClientHandle, val lifetime: LifetimeDefinition )
+
+        // tcp-direct (2026.2.4+) makes fp optional; drop it since it changes on every backend restart. jt is kept for backends that still require it.
+        internal fun clientLink(port: Int, connectionKey: String): URI {
+            val fragment = connectionKey.substringAfter('#', "").split('&').filterNot { it.startsWith("fp=") }.joinToString("&")
+            return URI("tcp-direct://127.0.0.1:$port#$fragment")
+        }
         private val runningInstances = HashMap<String, Instance>()
     }
 
