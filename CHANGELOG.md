@@ -5,7 +5,7 @@
 ## [Unreleased]
 ### Changed
 - Upgraded IntelliJ Platform to 2026.2.4 and IntelliJ Platform Gradle Plugin to 2.19.0
-- Client link uses `tcp-direct://` without `fp`, so it survives backend restarts (IntelliJ 2026.2.4+)
+- Client link uses `tcp-direct://` without `fp` for 2026.2.4+ backends (`cb`), so it survives backend restarts; older backends keep the `tcp://` link
 
 ## [0.0.4]
 ### Changed

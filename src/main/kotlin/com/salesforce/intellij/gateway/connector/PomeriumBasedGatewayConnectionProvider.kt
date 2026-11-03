@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.rd.defineNestedLifetime
+import com.intellij.openapi.util.BuildNumber
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.serviceContainer.NonInjectable
@@ -119,10 +120,17 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         const val PARAM_POMERIUM_INSTANCE = "pomeriumInstance"
         data class Instance (val clientHandle: ThinClientHandle, val lifetime: LifetimeDefinition )
 
-        // tcp-direct (2026.2.4+) makes fp optional; drop it since it changes on every backend restart. jt is kept for backends that still require it.
+        // The client is downloaded to match the backend build (cb); only 2026.2.4+ clients support tcp-direct
+        private val TCP_DIRECT_MIN_BUILD = BuildNumber.fromString("262.11879")!!
+
+        // tcp-direct makes fp optional; drop it since it changes on every backend restart. jt is kept for backends that still require it.
         internal fun clientLink(port: Int, connectionKey: String): URI {
-            val fragment = connectionKey.substringAfter('#', "").split('&').filterNot { it.startsWith("fp=") }.joinToString("&")
-            return URI("tcp-direct://127.0.0.1:$port#$fragment")
+            val params = connectionKey.substringAfter('#', "").split('&')
+            val clientBuild = params.firstOrNull { it.startsWith("cb=") }?.let { BuildNumber.fromString(it.removePrefix("cb=")) }
+            if (clientBuild == null || clientBuild < TCP_DIRECT_MIN_BUILD) {
+                return URI("tcp://127.0.0.1:$port#${params.joinToString("&")}")
+            }
+            return URI("tcp-direct://127.0.0.1:$port#${params.filterNot { it.startsWith("fp=") }.joinToString("&")}")
         }
         private val runningInstances = HashMap<String, Instance>()
     }
