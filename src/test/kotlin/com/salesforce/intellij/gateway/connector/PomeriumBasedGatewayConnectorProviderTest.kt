@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import java.net.Socket
+import java.net.URI
 import kotlin.time.Duration.Companion.seconds
 
 @TestApplication
@@ -29,6 +30,8 @@ class PomeriumBasedGatewayConnectorProviderTest {
 
         var socketConnected = false
         val provider = PomeriumBasedGatewayConnectionProvider { lifetime, initialLink, remoteIdentity ->
+            Assertions.assertEquals("tcp-direct", initialLink.scheme)
+            Assertions.assertEquals("jt=stub&p=IU&cb=231.9161.38&jb=17.0.7b829.16", initialLink.rawFragment)
             Socket(initialLink.host, initialLink.port).use {
                 val echo = "echo"
                 it.getOutputStream().write(echo.encodeToByteArray())
@@ -62,6 +65,17 @@ class PomeriumBasedGatewayConnectorProviderTest {
 
         // Ensure proper cleanup
         provider.dispose()
+    }
+
+    @Test
+    fun `client link is the same across backend restarts`() {
+        val beforeRestart = PomeriumBasedGatewayConnectionProvider.clientLink(4242,
+            "tcp://0.0.0.0:5990#p=IU&fp=0C30&cb=262.11879.100&newUi=true&jb=25.0.4.1b508.41")
+        val afterRestart = PomeriumBasedGatewayConnectionProvider.clientLink(4242,
+            "tcp://0.0.0.0:5990#p=IU&fp=BE56&cb=262.11879.100&newUi=true&jb=25.0.4.1b508.41")
+
+        Assertions.assertEquals(URI("tcp-direct://127.0.0.1:4242#p=IU&cb=262.11879.100&newUi=true&jb=25.0.4.1b508.41"), beforeRestart)
+        Assertions.assertEquals(beforeRestart, afterRestart)
     }
 
     companion object {
