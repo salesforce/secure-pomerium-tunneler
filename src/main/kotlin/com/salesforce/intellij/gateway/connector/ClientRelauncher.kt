@@ -2,13 +2,14 @@ package com.salesforce.intellij.gateway.connector
 
 import com.intellij.openapi.diagnostic.Logger
 import com.jetbrains.rd.util.lifetime.Lifetime
-import com.jetbrains.rd.util.lifetime.isAlive
 import com.jetbrains.rd.util.threading.coroutines.launch
 import com.salesforce.pomerium.TunnelConnectionListener
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -22,22 +23,22 @@ internal class ClientRelauncher(
     private val isClientPresent: () -> Boolean,
     private val relaunch: () -> Unit,
     private val wait: Duration = 30.seconds,
+    private val context: CoroutineContext = Dispatchers.Default,
 ) : TunnelConnectionListener {
 
     private val openConnections = AtomicInteger()
-    private val generation = AtomicLong()
+    private val pendingRelaunch = AtomicReference<Job?>()
 
     override fun onConnectionOpened() {
         openConnections.incrementAndGet()
-        generation.incrementAndGet()
+        pendingRelaunch.getAndSet(null)?.cancel()
     }
 
     override fun onConnectionClosed() {
         if (openConnections.decrementAndGet() > 0) return
-        val closedGeneration = generation.get()
-        lifetime.launch(Dispatchers.Default) {
+        val job = lifetime.launch(context) {
             delay(wait)
-            if (!lifetime.isAlive || generation.get() != closedGeneration || openConnections.get() > 0) return@launch
+            if (openConnections.get() > 0) return@launch
             if (!isClientPresent()) {
                 LOG.info("Client is not present, not relaunching it")
                 return@launch
@@ -49,6 +50,7 @@ internal class ClientRelauncher(
                 LOG.warn("Failed to relaunch the client", e)
             }
         }
+        pendingRelaunch.getAndSet(job)?.cancel()
     }
 
     companion object {

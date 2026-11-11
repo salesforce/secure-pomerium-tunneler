@@ -75,24 +75,19 @@ class PomeriumBasedGatewayConnectorProviderTest {
     }
 
     @Test
-    fun `test client close terminates connection`() = runTest(timeout = 20.seconds) {
+    fun `test client close ends the connection`() = runTest(timeout = 20.seconds) {
         Assertions.assertFalse(connectAndCloseClient(restartNeeded = false))
     }
 
     @Test
-    fun `test client close keeps connection alive when restart is needed`() = runTest(timeout = 20.seconds) {
+    fun `test client close keeps the connection when the client is restarting`() = runTest(timeout = 20.seconds) {
         Assertions.assertTrue(connectAndCloseClient(restartNeeded = true))
     }
 
     @Test
     fun `test stuck client is relaunched and its close does not end the connection`() = runTest(timeout = 20.seconds) {
-        val port = mockPomerium.startMockPomerium()
-        Registry.get(POMERIUM_PORT_KEY).setValue(port)
-        val parameters = mapOf(PomeriumBasedGatewayConnectionProvider.PARAM_ROUTE to "tcp+http://${mockPomerium.route}",
-            PomeriumBasedGatewayConnectionProvider.PARAM_CONNECTION_KEY to "tcp-direct://0.0.0.0:5990#p=IU")
-
         val handles = CopyOnWriteArrayList<ThinClientHandle>()
-        val closeHandlers = CopyOnWriteArrayList<() -> Unit>()
+        val onClose = CopyOnWriteArrayList<() -> Unit>()
         val provider = PomeriumBasedGatewayConnectionProvider(relaunchWait = 100.milliseconds) { _, initialLink, _ ->
             if (handles.isEmpty()) {
                 // The first client connects through the tunnel, then loses the connection (like on a backend restart)
@@ -101,32 +96,17 @@ class PomeriumBasedGatewayConnectorProviderTest {
                     it.getInputStream().readNBytes(4)
                 }
             }
-            mock<ThinClientHandle> {
-                on { clientPresent } doReturn true
-                on { clientClosed } doReturn object : ISource<Unit> {
-                    override fun advise(lifetime: Lifetime, handler: (Unit) -> Unit) {
-                        closeHandlers.add { handler(Unit) }
-                    }
-                }
-                on { clientFailedToOpenProject } doReturn object : ISource<Int> {
-                    override fun advise(lifetime: Lifetime, handler: (Int) -> Unit) {}
-                }
-                on { onClientPresenceChanged } doReturn object : ISource<Unit> {
-                    override fun advise(lifetime: Lifetime, handler: (Unit) -> Unit) {}
-                }
-            }.also { handles.add(it) }
+            fakeHandle(onClose).also { handles.add(it) }
         }
         try {
-            val connection = provider.connect(parameters, ConnectionRequestor.Local)!!
+            val connection = provider.connect(connectionParameters(), ConnectionRequestor.Local)!!
             withContext(Dispatchers.Default) {
                 withTimeout(10.seconds) { while (handles.size < 2) delay(20) }
             }
             verify(handles[0]).close()
-            // The stuck client's close event must not end the connection the new client uses
-            closeHandlers[0]()
+            onClose[0]()
             Assertions.assertTrue(connection.lifetime.isAlive)
-            // The new client's close still ends it
-            closeHandlers[1]()
+            onClose[1]()
             Assertions.assertFalse(connection.lifetime.isAlive)
         } finally {
             provider.dispose()
@@ -135,35 +115,38 @@ class PomeriumBasedGatewayConnectorProviderTest {
 
     // Connects, fires clientClosed on the handle, and returns whether the connection lifetime is still alive.
     private suspend fun connectAndCloseClient(restartNeeded: Boolean): Boolean {
-        val port = mockPomerium.startMockPomerium()
-        Registry.get(POMERIUM_PORT_KEY).setValue(port)
-        val parameters = mapOf(PomeriumBasedGatewayConnectionProvider.PARAM_ROUTE to "tcp+http://${mockPomerium.route}",
-            PomeriumBasedGatewayConnectionProvider.PARAM_CONNECTION_KEY to "tcp-direct://0.0.0.0:5990#p=IU")
-
-        var onClientClosed: () -> Unit = {}
-        val provider = PomeriumBasedGatewayConnectionProvider { _, _, _ ->
-            mock<ThinClientHandle> {
-                on { this.restartNeeded } doReturn restartNeeded
-                on { clientClosed } doReturn object : ISource<Unit> {
-                    override fun advise(lifetime: Lifetime, handler: (Unit) -> Unit) {
-                        onClientClosed = { handler(Unit) }
-                    }
-                }
-                on { clientFailedToOpenProject } doReturn object : ISource<Int> {
-                    override fun advise(lifetime: Lifetime, handler: (Int) -> Unit) {}
-                }
-                on { onClientPresenceChanged } doReturn object : ISource<Unit> {
-                    override fun advise(lifetime: Lifetime, handler: (Unit) -> Unit) {}
-                }
-            }
-        }
+        val onClose = CopyOnWriteArrayList<() -> Unit>()
+        val provider = PomeriumBasedGatewayConnectionProvider { _, _, _ -> fakeHandle(onClose, restartNeeded) }
         try {
-            val connection = provider.connect(parameters, ConnectionRequestor.Local)!!
-            onClientClosed()
+            val connection = provider.connect(connectionParameters(), ConnectionRequestor.Local)!!
+            onClose.single()()
             return connection.lifetime.isAlive
         } finally {
             provider.dispose()
         }
+    }
+
+    private suspend fun connectionParameters(): Map<String, String> {
+        Registry.get(POMERIUM_PORT_KEY).setValue(mockPomerium.startMockPomerium())
+        return mapOf(PomeriumBasedGatewayConnectionProvider.PARAM_ROUTE to "tcp+http://${mockPomerium.route}",
+            PomeriumBasedGatewayConnectionProvider.PARAM_CONNECTION_KEY to "tcp-direct://0.0.0.0:5990#p=IU")
+    }
+
+    // A present client whose clientClosed handlers are collected into onClose
+    private fun fakeHandle(onClose: MutableList<() -> Unit>, restartNeeded: Boolean = false) = mock<ThinClientHandle> {
+        on { clientPresent } doReturn true
+        on { this.restartNeeded } doReturn restartNeeded
+        on { clientClosed } doReturn object : ISource<Unit> {
+            override fun advise(lifetime: Lifetime, handler: (Unit) -> Unit) {
+                onClose.add { handler(Unit) }
+            }
+        }
+        on { clientFailedToOpenProject } doReturn ignoredSource()
+        on { onClientPresenceChanged } doReturn ignoredSource()
+    }
+
+    private fun <T> ignoredSource() = object : ISource<T> {
+        override fun advise(lifetime: Lifetime, handler: (T) -> Unit) {}
     }
 
     companion object {

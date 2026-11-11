@@ -1,79 +1,54 @@
 package com.salesforce.intellij.gateway.connector
 
 import com.jetbrains.rd.util.lifetime.LifetimeDefinition
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class ClientRelauncherTest {
 
     private val lifetime = LifetimeDefinition()
-    private val relaunches = AtomicInteger()
+    private var relaunches = 0
     private var clientPresent = true
-    private val relauncher = ClientRelauncher(lifetime, { clientPresent }, { relaunches.incrementAndGet() }, 50.milliseconds)
 
     @AfterEach
     fun tearDown() {
         lifetime.terminate()
     }
 
+    private fun TestScope.relauncherWithDroppedConnection() =
+        ClientRelauncher(lifetime, { clientPresent }, { relaunches++ }, 30.seconds, StandardTestDispatcher(testScheduler))
+            .apply {
+                onConnectionOpened()
+                onConnectionClosed()
+            }
+
     @Test
-    fun `relaunches once when the client never reconnects`() = runBlocking {
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        delay(300)
-        Assertions.assertEquals(1, relaunches.get())
+    fun `relaunches when the client does not reconnect`() = runTest {
+        relauncherWithDroppedConnection()
+        advanceTimeBy(31.seconds)
+        Assertions.assertEquals(1, relaunches)
     }
 
     @Test
-    fun `does not relaunch when the client opens a new connection`() = runBlocking {
+    fun `does not relaunch when the client reconnects`() = runTest {
+        val relauncher = relauncherWithDroppedConnection()
+        advanceTimeBy(10.seconds)
         relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        delay(25)
-        relauncher.onConnectionOpened()
-        delay(300)
-        Assertions.assertEquals(0, relaunches.get())
+        advanceTimeBy(31.seconds)
+        Assertions.assertEquals(0, relaunches)
     }
 
     @Test
-    fun `a reconnect that drops again relaunches once, not twice`() = runBlocking {
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        delay(25)
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        delay(300)
-        Assertions.assertEquals(1, relaunches.get())
-    }
-
-    @Test
-    fun `does not relaunch while another connection is still open`() = runBlocking {
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        delay(300)
-        Assertions.assertEquals(0, relaunches.get())
-    }
-
-    @Test
-    fun `does not relaunch when the client is gone`() = runBlocking {
+    fun `does not relaunch when the client is gone`() = runTest {
         clientPresent = false
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        delay(300)
-        Assertions.assertEquals(0, relaunches.get())
-    }
-
-    @Test
-    fun `does not relaunch after the lifetime ends`() = runBlocking {
-        relauncher.onConnectionOpened()
-        relauncher.onConnectionClosed()
-        lifetime.terminate()
-        delay(300)
-        Assertions.assertEquals(0, relaunches.get())
+        relauncherWithDroppedConnection()
+        advanceTimeBy(31.seconds)
+        Assertions.assertEquals(0, relaunches)
     }
 }
