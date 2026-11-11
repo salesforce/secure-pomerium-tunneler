@@ -50,7 +50,8 @@ class PomeriumTunneler(
         route: URI,
         lifetime: Lifetime,
         pomeriumHost: String = route.host,
-        pomeriumPort: Int = 443
+        pomeriumPort: Int = 443,
+        listener: TunnelConnectionListener? = null
     ): Int = withContext(Dispatchers.Default) {
 
         authProvider.getAuth(route, lifetime).await() //Populate auth if required
@@ -70,8 +71,9 @@ class PomeriumTunneler(
                         LOG.info("Local tunneling socket failed to accept connection: ${e.message}")
                         continue
                     }
+                    listener?.onConnectionOpened()
                     launch(Dispatchers.IO) {
-                        LOG.debug("New connection established on local socket for tunneling")
+                        LOG.info("New connection established on local socket for tunneling to $route")
                         try {
                             val auth = withTimeout(soTimeout) {
                                 authProvider.getAuth(route, lifetime).await()
@@ -110,11 +112,12 @@ class PomeriumTunneler(
                                         if (!readChannel.isClosedForRead) {
                                             LOG.warn("Invalid response from Pomerium: ${e.message}")
                                         } else {
-                                            LOG.debug("Remote read channel closed during tunnel initialization")
+                                            LOG.info("Remote read channel closed during tunnel initialization")
                                         }
                                         return@use
                                     }
 
+                                    LOG.info("Pomerium CONNECT to $route returned ${response.statusCode}")
                                     when (response.statusCode) {
                                         200 -> {
                                             LOG.info("Pomerium tunnel established")
@@ -141,7 +144,7 @@ class PomeriumTunneler(
                                         }
 
                                         503 -> {
-                                            LOG.debug("Pomerium returned service unavailable, trying after delay")
+                                            LOG.info("Pomerium returned service unavailable, trying after delay")
                                             delay(30.seconds)
                                             //don't delete jwt
                                         }
@@ -186,7 +189,9 @@ class PomeriumTunneler(
                             }
                         } finally {
                             withContext(NonCancellable) {
+                                LOG.info("Closing local tunnel connection to $route")
                                 localSocket.close()
+                                listener?.onConnectionClosed()
                             }
                         }
                     }

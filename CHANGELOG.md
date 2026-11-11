@@ -3,6 +3,11 @@
 # Secure Gateway Tunneler Plugin Changelog
 
 ## [Unreleased]
+### Fixed
+- Keep the tunnel and Gateway connection alive when the client closes for a restart (e.g. plugin update), so the client can reconnect
+- Relaunch the client when it stops reconnecting after a backend restart (e.g. Xmx change) instead of leaving it on "Connecting" forever
+- Log tunnel connections and Pomerium CONNECT results
+
 ### Changed
 - Upgraded IntelliJ Platform to 2026.2.4 and IntelliJ Platform Gradle Plugin to 2.19.0
 - Client link keeps the scheme of the connection key and drops `fp` from `tcp-direct://` links (2026.2.4+), so they stay valid across restarts; `tcp://` links are unchanged

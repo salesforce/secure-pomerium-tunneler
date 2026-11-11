@@ -19,6 +19,9 @@ import com.salesforce.pomerium.PomeriumAuthProvider
 import com.salesforce.pomerium.PomeriumTunneler
 import org.jetbrains.annotations.TestOnly
 import java.net.URI
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 const val POMERIUM_PORT_KEY = "com.salesforce.intellij.pomerium_port"
 private val pomeriumPort by lazy {
@@ -32,6 +35,7 @@ val PomeriumAuthService by lazy {
     )
 }
 class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal constructor(
+    private val relaunchWait: Duration = 30.seconds,
     private val createHandle: (lifetime: Lifetime, initialLink: URI, remoteIdentity: String?) -> ThinClientHandle
 ): GatewayConnectionProvider, Disposable {
 
@@ -39,7 +43,7 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
         useTls = !ApplicationManager.getApplication().isUnitTestMode,
         trustManager = CertificateManager.getInstance().trustManager)
 
-    constructor(): this({lifetime, initialLink, remoteIdentity ->
+    constructor(): this(createHandle = {lifetime, initialLink, remoteIdentity ->
         LinkedClientManager.getInstance().startNewClient(lifetime, initialLink, remoteIdentity) {
             LOG.debug("Connection established")
         }
@@ -70,32 +74,59 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
 //            runningInstances.remove(pomeriumRouteString)
 //        }
         try {
+            // The client currently attached to this connection. Events from a client we replaced are ignored.
+            val current = AtomicReference<ThinClientHandle?>()
+            lateinit var link: URI
+
+            fun attach(handle: ThinClientHandle) {
+                current.set(handle)
+                runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
+                handle.clientClosed.advise(lifetime) {
+                    // A client restart (e.g. after a plugin update) closes the client and reconnects to the same
+                    // tunnel, so keep the lifetime alive in that case.
+                    val replaced = handle !== current.get()
+                    LOG.info("Client closed for $pomeriumRouteString, restartNeeded=${handle.restartNeeded}, replaced=$replaced")
+                    if (!replaced && !handle.restartNeeded) {
+                        lifetime.terminate()
+                    }
+                }
+                handle.clientFailedToOpenProject.advise(lifetime) {
+                    if (handle === current.get()) lifetime.terminate()
+                }
+                handle.onClientPresenceChanged.advise(lifetime) {
+                    if (handle === current.get()) runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
+                }
+            }
+
+            val relauncher = ClientRelauncher(
+                lifetime,
+                isClientPresent = { current.get()?.clientPresent == true },
+                relaunch = {
+                    val stuck = current.getAndSet(null)
+                    stuck?.close()
+                    attach(createHandle(lifetime, link, pomeriumRoute.toString()))
+                },
+                relaunchWait
+            )
             val port = tunneler.startTunnel(
                 pomeriumRoute,
                 lifetime,
                 pomeriumInstance ?: pomeriumRoute.host,
-                pomeriumPort
+                pomeriumPort,
+                relauncher
             )
 
-            val handle = createHandle(lifetime,
-                    clientLink(port, connectionKey),
-                    pomeriumRoute.toString())
-            runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
+            link = clientLink(port, connectionKey)
+            attach(createHandle(lifetime,
+                    link,
+                    pomeriumRoute.toString()))
             lifetime.onTermination {
                 val oldHandle = runningInstances.remove(pomeriumRouteString)
                 //Prevent removing anything but this handle
-                if (oldHandle != handle) {
+                val handle = current.get()
+                if (handle != null && oldHandle != handle) {
                     runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
                 }
-            }
-            handle.clientClosed.advise(lifetime) {
-                lifetime.terminate()
-            }
-            handle.clientFailedToOpenProject.advise(lifetime) {
-                lifetime.terminate()
-            }
-            handle.onClientPresenceChanged.advise(lifetime) {
-                runningInstances[pomeriumRouteString] = Instance(handle,lifetime)
             }
 
             return object : GatewayConnectionHandle(lifetime) {
