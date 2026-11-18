@@ -5,6 +5,7 @@ import com.intellij.testFramework.junit5.TestApplication
 import com.jetbrains.gateway.api.ConnectionRequestor
 import com.jetbrains.gateway.thinClientLink.ThinClientHandle
 import com.jetbrains.rd.util.lifetime.Lifetime
+import com.jetbrains.rd.util.lifetime.isAlive
 import com.jetbrains.rd.util.reactive.ISource
 import com.salesforce.pomerium.MockPomerium
 import kotlinx.coroutines.test.runTest
@@ -64,6 +65,51 @@ class PomeriumBasedGatewayConnectorProviderTest {
 
         // Ensure proper cleanup
         provider.dispose()
+    }
+
+    @Test
+    fun `test client close ends the connection`() = runTest(timeout = 20.seconds) {
+        Assertions.assertFalse(connectAndCloseClient(restartNeeded = false))
+    }
+
+    @Test
+    fun `test client close keeps the connection when the client is restarting`() = runTest(timeout = 20.seconds) {
+        Assertions.assertTrue(connectAndCloseClient(restartNeeded = true))
+    }
+
+    // Connects, fires clientClosed on the handle, and returns whether the connection lifetime is still alive.
+    private suspend fun connectAndCloseClient(restartNeeded: Boolean): Boolean {
+        val onClose = mutableListOf<() -> Unit>()
+        val provider = PomeriumBasedGatewayConnectionProvider { _, _, _ -> fakeHandle(onClose, restartNeeded) }
+        try {
+            val connection = provider.connect(connectionParameters(), ConnectionRequestor.Local)!!
+            onClose.single()()
+            return connection.lifetime.isAlive
+        } finally {
+            provider.dispose()
+        }
+    }
+
+    private suspend fun connectionParameters(): Map<String, String> {
+        Registry.get(POMERIUM_PORT_KEY).setValue(mockPomerium.startMockPomerium())
+        return mapOf(PomeriumBasedGatewayConnectionProvider.PARAM_ROUTE to "tcp+http://${mockPomerium.route}",
+            PomeriumBasedGatewayConnectionProvider.PARAM_CONNECTION_KEY to "tcp-direct://0.0.0.0:5990#p=IU")
+    }
+
+    // A client whose clientClosed handlers are collected into onClose
+    private fun fakeHandle(onClose: MutableList<() -> Unit>, restartNeeded: Boolean = false) = mock<ThinClientHandle> {
+        on { this.restartNeeded } doReturn restartNeeded
+        on { clientClosed } doReturn object : ISource<Unit> {
+            override fun advise(lifetime: Lifetime, handler: (Unit) -> Unit) {
+                onClose.add { handler(Unit) }
+            }
+        }
+        on { clientFailedToOpenProject } doReturn ignoredSource()
+        on { onClientPresenceChanged } doReturn ignoredSource()
+    }
+
+    private fun <T> ignoredSource() = object : ISource<T> {
+        override fun advise(lifetime: Lifetime, handler: (T) -> Unit) {}
     }
 
     companion object {

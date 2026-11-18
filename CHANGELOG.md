@@ -3,6 +3,9 @@
 # Secure Gateway Tunneler Plugin Changelog
 
 ## [Unreleased]
+### Fixed
+- Keep the tunnel and Gateway connection alive when the client self-restarts (e.g. after a plugin update), so the relaunched client can reconnect
+
 ### Changed
 - Upgraded IntelliJ Platform to 2026.2.4 and IntelliJ Platform Gradle Plugin to 2.19.0
 - Client link keeps the scheme of the connection key and drops `fp` from `tcp-direct://` links (2026.2.4+), so they stay valid across restarts; `tcp://` links are unchanged

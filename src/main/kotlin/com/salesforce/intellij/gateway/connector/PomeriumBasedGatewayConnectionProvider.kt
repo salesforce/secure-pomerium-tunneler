@@ -89,7 +89,12 @@ class PomeriumBasedGatewayConnectionProvider @NonInjectable @TestOnly internal c
                 }
             }
             handle.clientClosed.advise(lifetime) {
-                lifetime.terminate()
+                // A client self-restart (e.g. after a plugin update) closes the client and relaunches it against the
+                // same Gateway handle and tunnel, so keep the lifetime alive in that case.
+                LOG.info("Client closed for $pomeriumRouteString, restartNeeded=${handle.restartNeeded}")
+                if (!handle.restartNeeded) {
+                    lifetime.terminate()
+                }
             }
             handle.clientFailedToOpenProject.advise(lifetime) {
                 lifetime.terminate()
