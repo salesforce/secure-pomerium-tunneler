@@ -103,6 +103,5 @@ class MockPomerium : AfterTestExecutionCallback {
                 pomeriumTask = null
             }
         }
-        coroutineScope.cancel()
     }
 }

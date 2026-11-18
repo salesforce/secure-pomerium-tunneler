@@ -3,6 +3,8 @@
 # Secure Gateway Tunneler Plugin Changelog
 
 ## [Unreleased]
+
+## [0.0.5]
 ### Fixed
 - Keep the tunnel and Gateway connection alive when the client self-restarts (e.g. after a plugin update), so the relaunched client can reconnect
 
